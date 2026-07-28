@@ -230,7 +230,23 @@ svg { display: block; }
 }
 .link-btn svg { width: 15px; height: 15px; flex: none; }
 .link-btn:hover { background: #dde5f2; }
-.card-foot { margin-top: 2px; }
+.card-foot { margin-top: 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card-foot .routine-check + .status-select { margin-left: auto; }
+/* Check de rotina (vale o período atual; reseta na virada) */
+.routine-check {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 600; font-family: inherit;
+  padding: 7px 13px; border-radius: 999px; cursor: pointer;
+  background: var(--surface-2); color: var(--ink-soft); border: 1px dashed var(--line);
+  transition: all .15s var(--ease);
+}
+.routine-check svg { width: 15px; height: 15px; }
+.routine-check:hover { border-color: var(--baixa); color: var(--baixa); background: var(--baixa-soft); }
+.routine-check.feita {
+  background: var(--baixa-soft); color: var(--baixa); border: 1px solid var(--baixa);
+}
+.routine-check.feita:hover { opacity: .75; }
+.list-due .routine-check { padding: 5px 11px; font-size: 12px; }
 .status-select { font-size: 12.5px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); cursor: pointer; font-family: inherit; }
 
 /* Board: Lista -------------------------------------------------------- */

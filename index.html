@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bom Dia</title>
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
   <div class="app">
@@ -171,6 +171,15 @@
             <input type="date" id="due_date">
           </div>
         </div>
+        <div class="field hidden" id="recorField">
+          <label>Recorrência <span class="opt">(repete sozinha; o check zera na virada do período)</span></label>
+          <select id="recorrencia">
+            <option value="">Sem recorrência</option>
+            <option value="diaria">Diária</option>
+            <option value="semanal">Semanal</option>
+            <option value="mensal">Mensal</option>
+          </select>
+        </div>
         <div class="field">
           <label>Projeto <span class="opt">(opcional)</span></label>
           <input type="text" id="projeto" list="projetosList" placeholder="Ex: Dina, Bellelli... deixe vazio se for avulso">
@@ -275,6 +284,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

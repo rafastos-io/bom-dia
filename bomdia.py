@@ -24,6 +24,7 @@ PORT = 9463
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
 TIPOS = ("tarefa", "ideia", "rotina")
+RECORRENCIAS = ("diaria", "semanal", "mensal")
 
 
 # ----------------------------------------------------------------------------
@@ -111,6 +112,13 @@ def init_db():
     if "projeto" not in cols:
         conn.execute("ALTER TABLE tasks ADD COLUMN projeto TEXT DEFAULT ''")
         conn.execute("UPDATE tasks SET projeto = '' WHERE projeto IS NULL")
+    # Rotinas (fase 2): recorrencia + check do periodo atual (sem historico)
+    if "recorrencia" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN recorrencia TEXT DEFAULT ''")
+        conn.execute("UPDATE tasks SET recorrencia = '' WHERE recorrencia IS NULL")
+    if "feito_em" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN feito_em TEXT DEFAULT ''")
+        conn.execute("UPDATE tasks SET feito_em = '' WHERE feito_em IS NULL")
     # Projetos viram entidade: semeia a tabela projects a partir dos nomes ja usados
     existentes = {r["name"] for r in conn.execute("SELECT name FROM projects")}
     for r in conn.execute("SELECT DISTINCT projeto FROM tasks WHERE TRIM(COALESCE(projeto,'')) <> ''"):
@@ -157,10 +165,27 @@ def api_key_ok(key):
     return bool(key) and key.strip().startswith("nvapi-")
 
 
+def periodo_atual(recorrencia):
+    """Identificador do periodo corrente, conforme a recorrencia.
+    O check da rotina guarda este valor em feito_em: quando o periodo vira,
+    a comparacao deixa de bater e a rotina 'reseta' sozinha (sem historico)."""
+    hoje = date.today()
+    if recorrencia == "diaria":
+        return hoje.isoformat()
+    if recorrencia == "semanal":
+        iso = hoje.isocalendar()
+        return f"{iso.year}-W{iso.week:02d}"
+    if recorrencia == "mensal":
+        return f"{hoje.year}-{hoje.month:02d}"
+    return ""
+
+
 def task_to_dict(row, links, subtasks):
     d = dict(row)
     d["links"] = [dict(l) for l in links]
     d["subtasks"] = [dict(s) for s in subtasks]
+    rec = d.get("recorrencia") or ""
+    d["feita"] = bool(rec) and (d.get("feito_em") or "") == periodo_atual(rec)
     return d
 
 
@@ -205,16 +230,28 @@ def list_tasks():
     return result
 
 
+def _clean_recorrencia(data, tipo=None):
+    rec = (data.get("recorrencia") or "").strip()
+    if rec not in RECORRENCIAS:
+        rec = ""
+    # recorrencia so faz sentido em rotina
+    if tipo is not None and tipo != "rotina":
+        rec = ""
+    return rec
+
+
 def create_task(data):
     conn = get_db()
     tipo = data.get("tipo", "tarefa")
     if tipo not in TIPOS:
         tipo = "tarefa"
     projeto = (data.get("projeto") or "").strip()
+    recorrencia = _clean_recorrencia(data, tipo)
     cur = conn.execute(
         """INSERT INTO tasks (title, requested_by, send_to, due_date,
-                              priority, description, status, created_at, tipo, projeto)
-           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                              priority, description, status, created_at, tipo, projeto,
+                              recorrencia, feito_em)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             data.get("title", "").strip() or "Sem titulo",
             data.get("requested_by", "").strip(),
@@ -226,6 +263,8 @@ def create_task(data):
             datetime.now().isoformat(timespec="seconds"),
             tipo,
             projeto,
+            recorrencia,
+            periodo_atual(recorrencia) if data.get("feita") and recorrencia else "",
         ),
     )
     task_id = cur.lastrowid
@@ -253,6 +292,21 @@ def update_task(task_id, data):
         if f in data:
             sets.append(f"{f} = ?")
             values.append(data[f])
+    # recorrencia: valida e, se mudou, zera o check (periodo novo nao conversa com o antigo)
+    if "recorrencia" in data or "tipo" in data:
+        atual = conn.execute("SELECT tipo, recorrencia FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if atual:
+            tipo_final = data.get("tipo", atual["tipo"])
+            if tipo_final not in TIPOS:
+                tipo_final = "tarefa"
+            rec_final = _clean_recorrencia(data, tipo_final) if "recorrencia" in data \
+                else ((atual["recorrencia"] or "") if tipo_final == "rotina" else "")
+            if "recorrencia" in data or rec_final != (atual["recorrencia"] or ""):
+                sets.append("recorrencia = ?")
+                values.append(rec_final)
+                if rec_final != (atual["recorrencia"] or ""):
+                    sets.append("feito_em = ?")
+                    values.append("")
     if sets:
         values.append(task_id)
         conn.execute(f"UPDATE tasks SET {', '.join(sets)} WHERE id = ?", values)
@@ -285,6 +339,17 @@ def update_subtask(sub_id, data):
         conn.execute("UPDATE subtasks SET title = ? WHERE id = ?",
                      ((data["title"] or "").strip(), sub_id))
     conn.commit()
+    conn.close()
+
+
+def set_routine_done(task_id, done):
+    """Marca/desmarca a rotina como feita NO PERIODO ATUAL (quem calcula o periodo e o codigo)."""
+    conn = get_db()
+    row = conn.execute("SELECT recorrencia FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row and (row["recorrencia"] or ""):
+        val = periodo_atual(row["recorrencia"]) if done else ""
+        conn.execute("UPDATE tasks SET feito_em = ? WHERE id = ?", (val, task_id))
+        conn.commit()
     conn.close()
 
 
@@ -493,6 +558,8 @@ Regras:
      "priority": "alta" | "media" | "baixa",
      "due_date": "AAAA-MM-DD" ou "" se nao houver prazo,
      "tipo": "tarefa" | "ideia" | "rotina",
+     "recorrencia": "diaria" | "semanal" | "mensal" (SO se tipo="rotina" e o texto indicar
+       frequencia, ex.: "todo dia", "toda semana", "mensalmente"; senao ""),
      "projeto": "nome do projeto/cliente a que isso pertence, ou \\"\\" se for avulso",
      "requested_by": "quem pediu, se mencionado, senao \\"\\"",
      "send_to": "para quem enviar, se mencionado, senao \\"\\"",
@@ -604,6 +671,7 @@ def ai_parse(text):
             "priority": t.get("priority") if t.get("priority") in ("alta", "media", "baixa") else "media",
             "due_date": (t.get("due_date") or "").strip(),
             "tipo": tipo if tipo in TIPOS else "tarefa",
+            "recorrencia": _clean_recorrencia(t, tipo if tipo in TIPOS else "tarefa"),
             "projeto": (t.get("projeto") or "").strip(),
             "requested_by": (t.get("requested_by") or "").strip(),
             "send_to": (t.get("send_to") or "").strip(),
@@ -712,6 +780,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if len(pparts) == 4 and pparts[0] == "api" and pparts[1] == "projects" and pparts[3] == "notes":
             nid = create_note(int(pparts[2]), self._read_json())
             return self._json({"id": nid}, 201)
+        if len(pparts) == 4 and pparts[0] == "api" and pparts[1] == "tasks" and pparts[3] == "feito":
+            data = self._read_json()
+            set_routine_done(int(pparts[2]), bool(data.get("done")))
+            return self._json({"ok": True})
         if parsed.path == "/api/open":
             data = self._read_json()
             ok, msg = open_folder(data.get("path", ""))

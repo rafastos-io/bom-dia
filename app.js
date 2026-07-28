@@ -20,6 +20,8 @@ const TIPO_LABEL = { tarefa: "Tarefa", ideia: "Ideia", rotina: "Rotina" };
 const AREA_TIPO = { hoje: "tarefa", ideias: "ideia", rotina: "rotina" }; // área -> tipo preset
 const PRIO_RANK = { alta: 0, media: 1, baixa: 2 };
 const PRIO_LABEL = { alta: "Alta", media: "Média", baixa: "Baixa" };
+const RECOR_LABEL = { diaria: "Diária", semanal: "Semanal", mensal: "Mensal" };
+const PERIODO_LABEL = { diaria: "hoje", semanal: "nesta semana", mensal: "neste mês" };
 
 // Uma tarefa pertence à "área" de navegação conforme tipo/projeto (dimensões cruzadas)
 function inArea(t, area) {
@@ -55,6 +57,7 @@ const ICONS = {
   chevron: `<svg viewBox="0 0 24 24" ${S}><path d="M6 9l6 6 6-6"/></svg>`,
   people: `<svg viewBox="0 0 24 24" ${S}><circle cx="9" cy="8" r="3"/><path d="M15 11a3 3 0 1 0-2-5.2"/><path d="M3.5 20c0-3 2.6-5 5.5-5s5.5 2 5.5 5"/><path d="M16 15.2c2.4.3 4.5 2 4.5 4.8"/></svg>`,
   back: `<svg viewBox="0 0 24 24" ${S}><path d="M15 18l-6-6 6-6"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" ${S}><path d="M20 6 9 17l-5-5"/></svg>`,
 };
 function ic(name) { return `<span class="i">${ICONS[name] || ""}</span>`; }
 function injectIcons() {
@@ -218,10 +221,21 @@ function renderDashboard() {
 // --- Componentes compartilhados -------------------------------------
 function metaHTML(t, { hideProjeto = false } = {}) {
   let m = `<span class="tag prio-${t.priority}">${PRIO_LABEL[t.priority] || t.priority}</span>`;
-  if ((t.tipo || "tarefa") !== "tarefa") m += `<span class="tag tipo">${TIPO_LABEL[t.tipo]}</span>`;
+  if ((t.tipo || "tarefa") !== "tarefa") {
+    const rec = t.recorrencia && RECOR_LABEL[t.recorrencia] ? ` · ${RECOR_LABEL[t.recorrencia]}` : "";
+    m += `<span class="tag tipo">${TIPO_LABEL[t.tipo]}${rec}</span>`;
+  }
   if (!hideProjeto && (t.projeto || "").trim()) m += `<span class="tag projeto">${esc(t.projeto)}</span>`;
   if (t.due_date) m += `<span class="tag ${isLate(t) ? "due-late" : ""}">${fmtDate(t.due_date)}</span>`;
   return m;
+}
+// Botão de check da rotina: vale pro período atual, reseta sozinho na virada
+function routineHTML(t) {
+  if ((t.tipo || "tarefa") !== "rotina" || !(t.recorrencia || "")) return "";
+  const per = PERIODO_LABEL[t.recorrencia] || "";
+  return `<button class="routine-check${t.feita ? " feita" : ""}" data-routine="1"
+    title="Recorrência ${RECOR_LABEL[t.recorrencia].toLowerCase()} — clique pra ${t.feita ? "desfazer" : "marcar"}">
+    ${ic(t.feita ? "check" : "repeat")} ${t.feita ? `Feito ${per}` : `Marcar feito ${per}`}</button>`;
 }
 function linksHTML(t) {
   return (t.links || []).map((l) =>
@@ -265,6 +279,12 @@ function wireCard(c, t) {
     await api("PUT", `/api/subtasks/${cb.dataset.sub}`, { done: cb.checked ? 1 : 0 });
     loadTasks();
   }));
+  const rc = c.querySelector("[data-routine]");
+  if (rc) rc.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    await api("POST", `/api/tasks/${t.id}/feito`, { done: !t.feita });
+    loadTasks();
+  });
 }
 
 function card(t, metaOpts = {}) {
@@ -282,7 +302,7 @@ function card(t, metaOpts = {}) {
     ${subtasksHTML(t)}
     ${people ? `<div class="card-people">${people}</div>` : ""}
     ${links ? `<div class="card-links">${links}</div>` : ""}
-    <div class="card-foot">${statusSelectHTML(t)}</div>`;
+    <div class="card-foot">${routineHTML(t)}${statusSelectHTML(t)}</div>`;
   wireCard(c, t); addDrag(c, t);
   return c;
 }
@@ -296,7 +316,7 @@ function listRow(t) {
     <span class="dot dot-${t.priority}" title="${PRIO_LABEL[t.priority]}"></span>
     <span class="list-title card-title">${esc(t.title)}${subBadge(t)}</span>
     <span class="list-people">${people}</span>
-    <span class="list-due">${t.due_date ? (isLate(t) ? "⚠ " : "") + fmtDate(t.due_date) : ""}</span>
+    <span class="list-due">${routineHTML(t) || (t.due_date ? (isLate(t) ? "⚠ " : "") + fmtDate(t.due_date) : "")}</span>
     <span class="list-links">${linksHTML(t)}</span>
     <span class="list-status">${statusSelectHTML(t)}</span>`;
   wireCard(r, t); addDrag(r, t);
@@ -753,6 +773,9 @@ function collectSubtasks() {
     done: r.querySelector(".s-done").checked ? 1 : 0,
   })).filter((s) => s.title.trim());
 }
+function syncRecorField() {
+  el("recorField").classList.toggle("hidden", el("tipo").value !== "rotina");
+}
 function openModal(task, presets = {}) {
   el("taskForm").reset(); el("linksList").innerHTML = ""; el("subtasksList").innerHTML = "";
   if (task) {
@@ -760,6 +783,7 @@ function openModal(task, presets = {}) {
     el("taskId").value = task.id;
     el("title").value = task.title || "";
     el("tipo").value = task.tipo || "tarefa";
+    el("recorrencia").value = task.recorrencia || "";
     el("projeto").value = task.projeto || "";
     el("priority").value = task.priority || "media";
     el("due_date").value = task.due_date || "";
@@ -773,10 +797,12 @@ function openModal(task, presets = {}) {
     el("modalTitle").textContent = "Nova tarefa";
     el("taskId").value = "";
     el("tipo").value = presets.tipo || AREA_TIPO[AREA] || "tarefa";
+    el("recorrencia").value = presets.recorrencia || "";
     el("projeto").value = presets.projeto || "";
     el("due_date").value = presets.due_date || "";
     el("btnDelete").classList.add("hidden");
   }
+  syncRecorField();
   openOverlay("modal"); el("title").focus();
 }
 function collectLinks() {
@@ -793,6 +819,7 @@ async function saveTask(e) {
     priority: el("priority").value, due_date: el("due_date").value,
     requested_by: el("requested_by").value, send_to: el("send_to").value,
     description: el("description").value, links: collectLinks(), subtasks: collectSubtasks(),
+    recorrencia: el("tipo").value === "rotina" ? el("recorrencia").value : "",
   };
   const id = el("taskId").value;
   if (id) await api("PUT", `/api/tasks/${id}`, payload);
@@ -976,12 +1003,17 @@ function reviewCard(t) {
     ${(t.links && t.links.length) ? `<div class="rcard-links">${t.links.map((l) => `<span class="rlink">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</span>`).join("")}</div>` : ""}
     <div class="rcard-controls">
       <select class="r-tipo">${opt("tarefa", t.tipo, "Tarefa")}${opt("ideia", t.tipo, "Ideia")}${opt("rotina", t.tipo, "Rotina")}</select>
+      <select class="r-recor${t.tipo === "rotina" ? "" : " hidden"}" title="Recorrência da rotina">
+        ${opt("", t.recorrencia || "", "Sem recorrência")}${opt("diaria", t.recorrencia || "", "Diária")}${opt("semanal", t.recorrencia || "", "Semanal")}${opt("mensal", t.recorrencia || "", "Mensal")}
+      </select>
       <select class="r-prio">${opt("alta", t.priority, "Alta")}${opt("media", t.priority, "Média")}${opt("baixa", t.priority, "Baixa")}</select>
       <input class="r-date" type="date" value="${esc(t.due_date || "")}">
       <input class="r-projeto" placeholder="Projeto" value="${esc(t.projeto || "")}" list="projetosList">
     </div>`;
   c._data = t;
   c.querySelector(".rm").addEventListener("click", () => c.remove());
+  c.querySelector(".r-tipo").addEventListener("change", (e) =>
+    c.querySelector(".r-recor").classList.toggle("hidden", e.target.value !== "rotina"));
   return c;
 }
 async function createAllFromReview() {
@@ -989,11 +1021,13 @@ async function createAllFromReview() {
   if (!cards.length) { toast("Nada pra criar."); return; }
   for (const c of cards) {
     const t = c._data;
+    const tipo = c.querySelector(".r-tipo").value;
     await api("POST", "/api/tasks", {
       title: c.querySelector(".r-title").value,
       description: t.description || "",
       priority: c.querySelector(".r-prio").value,
-      tipo: c.querySelector(".r-tipo").value,
+      tipo,
+      recorrencia: tipo === "rotina" ? c.querySelector(".r-recor").value : "",
       projeto: c.querySelector(".r-projeto").value.trim(),
       due_date: c.querySelector(".r-date").value,
       requested_by: t.requested_by || "",
@@ -1061,6 +1095,7 @@ el("btnSaveConfig").addEventListener("click", async () => {
   closeOverlay("configModal"); toast("Ajustes salvos ✓"); render();
 });
 el("taskForm").addEventListener("submit", saveTask);
+el("tipo").addEventListener("change", syncRecorField);
 el("btnDelete").addEventListener("click", deleteTask);
 el("btnAddLink").addEventListener("click", () => el("linksList").appendChild(blankLinkRow()));
 el("btnAddSub").addEventListener("click", () => el("subtasksList").appendChild(blankSubRow()));
