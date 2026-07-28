@@ -7,79 +7,168 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="greeting">
-      <h1 id="greeting">Bom dia</h1>
-      <p id="subtitle">Carregando suas demandas...</p>
+  <div class="app">
+    <!-- Barra lateral -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" data-icon="sun"></span>
+        <span class="brand-name">Bom Dia</span>
+      </div>
+      <nav class="nav" id="nav">
+        <button class="nav-item active" data-area="hoje"><span data-icon="sun"></span> Hoje <span class="nav-count" data-count="hoje"></span></button>
+        <button class="nav-item" data-area="projetos"><span data-icon="layers"></span> Projetos <span class="nav-count" data-count="projetos"></span></button>
+        <button class="nav-item" data-area="ideias"><span data-icon="bulb"></span> Ideias <span class="nav-count" data-count="ideias"></span></button>
+        <button class="nav-item" data-area="rotina"><span data-icon="repeat"></span> Rotina <span class="nav-count" data-count="rotina"></span></button>
+      </nav>
+      <div class="sidebar-foot">
+        <button class="nav-item subtle" id="btnConfig"><span data-icon="gear"></span> Ajustes</button>
+      </div>
+    </aside>
+
+    <!-- Conteúdo -->
+    <main class="content">
+      <!-- Dashboard (só em Hoje) -->
+      <section id="dashboard" class="dashboard">
+        <h1 id="greeting" class="greeting">Bom dia</h1>
+        <p id="subtitle" class="subtitle"></p>
+
+        <div class="hero-actions">
+          <button id="btnAssistant" class="btn-hero">
+            <span data-icon="sparkle"></span> Organizar meu dia
+          </button>
+          <button id="btnNew" class="btn-soft"><span data-icon="plus"></span> Adicionar tarefa</button>
+          <button id="btnRemind" class="btn-soft"><span data-icon="clock"></span> Me lembrar depois</button>
+        </div>
+
+        <div class="focus">
+          <div class="focus-block">
+            <h2 class="focus-title">Três prioridades do dia</h2>
+            <div id="priorities" class="priorities"></div>
+          </div>
+          <div class="focus-block">
+            <h2 class="focus-title">Agenda</h2>
+            <div id="agenda" class="agenda"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cabeçalho de área (fora de Hoje) -->
+      <header id="areaHeader" class="area-header hidden">
+        <h1 id="areaTitle" class="greeting"></h1>
+        <button id="btnNew2" class="btn-soft"><span data-icon="plus"></span> Adicionar</button>
+      </header>
+
+      <!-- Barra de ferramentas -->
+      <section class="toolbar">
+        <div class="filter-group" id="statusFilters">
+          <button class="chip active" data-status="ativas">Ativas</button>
+          <button class="chip" data-status="todas">Todas</button>
+          <button class="chip" data-status="concluida">Concluídas</button>
+        </div>
+        <div class="view-toggle" id="viewToggle">
+          <button class="vbtn active" data-view="cards" title="Cards"><span data-icon="grid"></span></button>
+          <button class="vbtn" data-view="lista" title="Lista"><span data-icon="list"></span></button>
+          <button class="vbtn" data-view="kanban" title="Kanban"><span data-icon="columns"></span></button>
+        </div>
+      </section>
+      <section class="toolbar sub">
+        <div class="filter-group" id="prioFilters">
+          <span class="flabel">Prioridade</span>
+          <button class="chip mini active" data-prio="todas">Todas</button>
+          <button class="chip mini" data-prio="alta">Alta</button>
+          <button class="chip mini" data-prio="media">Média</button>
+          <button class="chip mini" data-prio="baixa">Baixa</button>
+        </div>
+        <label class="check"><input type="checkbox" id="lateOnly"> Só atrasadas</label>
+        <div class="spacer"></div>
+        <select id="sort" class="sort-select">
+          <option value="auto">Prioridade &amp; prazo</option>
+          <option value="prazo">Prazo</option>
+          <option value="criacao">Mais recentes</option>
+          <option value="az">A–Z</option>
+        </select>
+        <div class="search-wrap"><span data-icon="search"></span><input type="search" id="search" placeholder="Buscar..."></div>
+      </section>
+
+      <section id="board" class="board"></section>
+      <div id="empty" class="empty hidden"></div>
+    </main>
+  </div>
+
+  <!-- Modal: assistente -->
+  <div id="assistantModal" class="modal-overlay hidden">
+    <div class="modal modal-assistant">
+      <div class="modal-head">
+        <h2><span data-icon="sparkle"></span> Organizar meu dia</h2>
+        <button class="btn-icon" data-close="assistantModal"><span data-icon="close"></span></button>
+      </div>
+
+      <!-- Passo: configurar chave (se necessário) -->
+      <div id="aiSetup" class="ai-setup hidden">
+        <p class="hint">Pra eu te ajudar, cole sua chave da NVIDIA (gratuita). Ela fica só aqui no seu computador.</p>
+        <ol class="steps">
+          <li>Acesse <b>build.nvidia.com</b> e entre.</li>
+          <li>Escolha um modelo → <b>Get API Key</b>.</li>
+          <li>Cole a chave <code>nvapi-...</code> abaixo.</li>
+        </ol>
+        <input type="password" id="cfgKey" placeholder="nvapi-...">
+        <button id="btnSaveKey" class="btn-primary">Salvar chave</button>
+      </div>
+
+      <!-- Passo: conversa -->
+      <div id="aiChat">
+        <p class="assistant-lead">Me conta o que chegou. Escreve solto — eu organizo em tarefas pra você.</p>
+        <textarea id="aiText" rows="5" placeholder="Ex: a Claudia pediu uns vídeos pra campanha do dia das mães, é meio urgente, entrego até sexta que vem..."></textarea>
+        <div class="modal-foot">
+          <div class="spacer"></div>
+          <button id="btnOrganize" class="btn-hero"><span data-icon="sparkle"></span> Organizar</button>
+        </div>
+      </div>
+
+      <!-- Passo: revisão -->
+      <div id="aiReview" class="ai-review hidden"></div>
     </div>
-    <button id="btnNew" class="btn-primary">+ Nova demanda</button>
-  </header>
+  </div>
 
-  <main>
-    <section class="toolbar">
-      <div class="filter-group" id="statusFilters">
-        <button class="chip active" data-status="ativas">Ativas</button>
-        <button class="chip" data-status="todas">Todas</button>
-        <button class="chip" data-status="concluida">Concluídas</button>
-      </div>
-      <div class="view-toggle" id="viewToggle">
-        <button class="vbtn active" data-view="cards" title="Cards">▦ Cards</button>
-        <button class="vbtn" data-view="lista" title="Lista">☰ Lista</button>
-        <button class="vbtn" data-view="kanban" title="Kanban">▥ Kanban</button>
-      </div>
-    </section>
-
-    <section class="toolbar sub">
-      <div class="filter-group" id="prioFilters">
-        <span class="flabel">Prioridade</span>
-        <button class="chip mini active" data-prio="todas">Todas</button>
-        <button class="chip mini" data-prio="alta">🔴 Alta</button>
-        <button class="chip mini" data-prio="media">🟡 Média</button>
-        <button class="chip mini" data-prio="baixa">🟢 Baixa</button>
-      </div>
-      <label class="check"><input type="checkbox" id="lateOnly"> ⏰ Só atrasadas</label>
-      <div class="spacer"></div>
-      <select id="sort" class="sort-select">
-        <option value="auto">Ordenar: Prioridade &amp; prazo</option>
-        <option value="prazo">Ordenar: Prazo</option>
-        <option value="criacao">Ordenar: Mais recentes</option>
-        <option value="az">Ordenar: A–Z</option>
-      </select>
-      <input type="search" id="search" placeholder="Buscar...">
-    </section>
-
-    <section id="board" class="board"></section>
-    <div id="empty" class="empty hidden">
-      <p>Nenhuma demanda por aqui. Clique em <strong>+ Nova demanda</strong> pra começar.</p>
-    </div>
-  </main>
-
-  <!-- Modal de criar/editar -->
+  <!-- Modal: criar/editar tarefa -->
   <div id="modal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-head">
-        <h2 id="modalTitle">Nova demanda</h2>
-        <button id="btnClose" class="btn-icon">✕</button>
+        <h2 id="modalTitle">Nova tarefa</h2>
+        <button class="btn-icon" data-close="modal"><span data-icon="close"></span></button>
       </div>
       <form id="taskForm">
         <input type="hidden" id="taskId">
         <div class="field">
-          <label>Título *</label>
+          <label>Título</label>
           <input type="text" id="title" required placeholder="Ex: Ajustar relatório do cliente X">
         </div>
-        <div class="row">
+        <div class="row3">
           <div class="field">
-            <label>Prioridade</label>
-            <select id="priority">
-              <option value="alta">🔴 Alta</option>
-              <option value="media" selected>🟡 Média</option>
-              <option value="baixa">🟢 Baixa</option>
+            <label>Tipo</label>
+            <select id="tipo">
+              <option value="tarefa">Tarefa</option>
+              <option value="ideia">Ideia</option>
+              <option value="rotina">Rotina</option>
             </select>
           </div>
           <div class="field">
-            <label>Prazo / data</label>
+            <label>Prioridade</label>
+            <select id="priority">
+              <option value="alta">Alta</option>
+              <option value="media" selected>Média</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Prazo</label>
             <input type="date" id="due_date">
           </div>
+        </div>
+        <div class="field">
+          <label>Projeto <span class="opt">(opcional)</span></label>
+          <input type="text" id="projeto" list="projetosList" placeholder="Ex: Dina, Bellelli... deixe vazio se for avulso">
+          <datalist id="projetosList"></datalist>
         </div>
         <div class="row">
           <div class="field">
@@ -88,28 +177,51 @@
           </div>
           <div class="field">
             <label>Pra quem enviar</label>
-            <input type="text" id="send_to" placeholder="Ex: Maria / equipe de design">
+            <input type="text" id="send_to" placeholder="Ex: Maria / design">
           </div>
         </div>
         <div class="field">
           <label>Descrição</label>
-          <textarea id="description" rows="3" placeholder="Detalhes da demanda..."></textarea>
+          <textarea id="description" rows="3" placeholder="Detalhes..."></textarea>
         </div>
-
         <div class="field">
-          <label>Links importantes</label>
-          <p class="hint">Cole um link da web (https://...) ou o caminho de uma pasta do seu PC (ex: C:\Users\voce\Documents\Projeto). A pasta abre no Explorer ao clicar.</p>
+          <label>Links e pastas</label>
+          <p class="hint">Link da web (https://...) ou caminho de uma pasta do PC — a pasta abre no Explorer ao clicar.</p>
           <div id="linksList"></div>
-          <button type="button" id="btnAddLink" class="btn-ghost">+ Adicionar link ou pasta</button>
+          <button type="button" id="btnAddLink" class="btn-ghost"><span data-icon="plus"></span> Link ou pasta</button>
         </div>
-
         <div class="modal-foot">
           <button type="button" id="btnDelete" class="btn-danger hidden">Excluir</button>
           <div class="spacer"></div>
-          <button type="button" id="btnCancel" class="btn-ghost">Cancelar</button>
+          <button type="button" class="btn-ghost" data-close="modal">Cancelar</button>
           <button type="submit" class="btn-primary">Salvar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: ajustes -->
+  <div id="configModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Ajustes</h2>
+        <button class="btn-icon" data-close="configModal"><span data-icon="close"></span></button>
+      </div>
+      <div class="field">
+        <label>Seu nome (pra saudação)</label>
+        <input type="text" id="cfgName" placeholder="Ex: Rafa">
+      </div>
+      <div class="field">
+        <label>Chave da NVIDIA</label>
+        <p class="hint">Fica só no seu computador (não vai pro GitHub). Deixe em branco pra não alterar.</p>
+        <input type="password" id="cfgKey2" placeholder="nvapi-...">
+        <p class="hint" id="cfgStatus"></p>
+      </div>
+      <div class="modal-foot">
+        <div class="spacer"></div>
+        <button type="button" class="btn-ghost" data-close="configModal">Cancelar</button>
+        <button id="btnSaveConfig" class="btn-primary">Salvar</button>
+      </div>
     </div>
   </div>
 

@@ -2,6 +2,9 @@
 bomdia.db
 bomdia.db-journal
 
+# Chave da API / configuracao pessoal - NUNCA versionar
+config.json
+
 # Cache Python
 __pycache__/
 *.pyc
