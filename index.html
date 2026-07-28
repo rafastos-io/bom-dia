@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bom Dia</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="greeting">
+      <h1 id="greeting">Bom dia</h1>
+      <p id="subtitle">Carregando suas demandas...</p>
+    </div>
+    <button id="btnNew" class="btn-primary">+ Nova demanda</button>
+  </header>
+
+  <main>
+    <section class="toolbar">
+      <div class="filter-group" id="statusFilters">
+        <button class="chip active" data-status="ativas">Ativas</button>
+        <button class="chip" data-status="todas">Todas</button>
+        <button class="chip" data-status="concluida">Concluídas</button>
+      </div>
+      <div class="view-toggle" id="viewToggle">
+        <button class="vbtn active" data-view="cards" title="Cards">▦ Cards</button>
+        <button class="vbtn" data-view="lista" title="Lista">☰ Lista</button>
+        <button class="vbtn" data-view="kanban" title="Kanban">▥ Kanban</button>
+      </div>
+    </section>
+
+    <section class="toolbar sub">
+      <div class="filter-group" id="prioFilters">
+        <span class="flabel">Prioridade</span>
+        <button class="chip mini active" data-prio="todas">Todas</button>
+        <button class="chip mini" data-prio="alta">🔴 Alta</button>
+        <button class="chip mini" data-prio="media">🟡 Média</button>
+        <button class="chip mini" data-prio="baixa">🟢 Baixa</button>
+      </div>
+      <label class="check"><input type="checkbox" id="lateOnly"> ⏰ Só atrasadas</label>
+      <div class="spacer"></div>
+      <select id="sort" class="sort-select">
+        <option value="auto">Ordenar: Prioridade &amp; prazo</option>
+        <option value="prazo">Ordenar: Prazo</option>
+        <option value="criacao">Ordenar: Mais recentes</option>
+        <option value="az">Ordenar: A–Z</option>
+      </select>
+      <input type="search" id="search" placeholder="Buscar...">
+    </section>
+
+    <section id="board" class="board"></section>
+    <div id="empty" class="empty hidden">
+      <p>Nenhuma demanda por aqui. Clique em <strong>+ Nova demanda</strong> pra começar.</p>
+    </div>
+  </main>
+
+  <!-- Modal de criar/editar -->
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="modalTitle">Nova demanda</h2>
+        <button id="btnClose" class="btn-icon">✕</button>
+      </div>
+      <form id="taskForm">
+        <input type="hidden" id="taskId">
+        <div class="field">
+          <label>Título *</label>
+          <input type="text" id="title" required placeholder="Ex: Ajustar relatório do cliente X">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Prioridade</label>
+            <select id="priority">
+              <option value="alta">🔴 Alta</option>
+              <option value="media" selected>🟡 Média</option>
+              <option value="baixa">🟢 Baixa</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Prazo / data</label>
+            <input type="date" id="due_date">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Quem pediu</label>
+            <input type="text" id="requested_by" placeholder="Ex: João do financeiro">
+          </div>
+          <div class="field">
+            <label>Pra quem enviar</label>
+            <input type="text" id="send_to" placeholder="Ex: Maria / equipe de design">
+          </div>
+        </div>
+        <div class="field">
+          <label>Descrição</label>
+          <textarea id="description" rows="3" placeholder="Detalhes da demanda..."></textarea>
+        </div>
+
+        <div class="field">
+          <label>Links importantes</label>
+          <p class="hint">Cole um link da web (https://...) ou o caminho de uma pasta do seu PC (ex: C:\Users\voce\Documents\Projeto). A pasta abre no Explorer ao clicar.</p>
+          <div id="linksList"></div>
+          <button type="button" id="btnAddLink" class="btn-ghost">+ Adicionar link ou pasta</button>
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" id="btnDelete" class="btn-danger hidden">Excluir</button>
+          <div class="spacer"></div>
+          <button type="button" id="btnCancel" class="btn-ghost">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Banco local com dados pessoais - nao versionar
+bomdia.db
+bomdia.db-journal
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
