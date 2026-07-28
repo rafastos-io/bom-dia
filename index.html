@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bom Dia</title>
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
   <div class="app">
@@ -138,87 +138,97 @@
 
   <!-- Modal: criar/editar tarefa -->
   <div id="modal" class="modal-overlay hidden">
-    <div class="modal">
+    <div class="modal modal-task">
       <div class="modal-head">
         <h2 id="modalTitle">Nova tarefa</h2>
         <button class="btn-icon" data-close="modal"><span data-icon="close"></span></button>
       </div>
       <form id="taskForm">
         <input type="hidden" id="taskId">
+        <div class="modal-body">
         <div class="field">
           <label>Título</label>
           <input type="text" id="title" required placeholder="Ex: Ajustar relatório do cliente X">
         </div>
-        <div class="row3">
-          <div class="field">
-            <label>Tipo</label>
-            <select id="tipo">
-              <option value="tarefa">Tarefa</option>
-              <option value="ideia">Ideia</option>
-              <option value="rotina">Rotina</option>
-            </select>
+        <div class="modal-cols">
+          <!-- Coluna esquerda: atributos -->
+          <div class="modal-col">
+            <div class="row3">
+              <div class="field">
+                <label>Tipo</label>
+                <select id="tipo">
+                  <option value="tarefa">Tarefa</option>
+                  <option value="ideia">Ideia</option>
+                  <option value="rotina">Rotina</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Prioridade</label>
+                <select id="priority">
+                  <option value="alta">Alta</option>
+                  <option value="media" selected>Média</option>
+                  <option value="baixa">Baixa</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Prazo</label>
+                <input type="date" id="due_date">
+              </div>
+            </div>
+            <div class="field hidden" id="recorField">
+              <label>Recorrência <span class="opt">(repete sozinha; o check zera na virada)</span></label>
+              <select id="recorrencia">
+                <option value="">Sem recorrência</option>
+                <option value="diaria">Diária</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensal">Mensal</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Projeto <span class="opt">(opcional)</span></label>
+              <input type="text" id="projeto" list="projetosList" placeholder="Ex: Dina, Bellelli...">
+              <datalist id="projetosList"></datalist>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label>Quem pediu</label>
+                <input type="text" id="requested_by" placeholder="Ex: João do financeiro">
+              </div>
+              <div class="field">
+                <label>Pra quem enviar</label>
+                <input type="text" id="send_to" placeholder="Ex: Maria / design">
+              </div>
+            </div>
+            <div class="field field-grow">
+              <label>Descrição</label>
+              <textarea id="description" rows="5" placeholder="Detalhes..."></textarea>
+            </div>
           </div>
-          <div class="field">
-            <label>Prioridade</label>
-            <select id="priority">
-              <option value="alta">Alta</option>
-              <option value="media" selected>Média</option>
-              <option value="baixa">Baixa</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Prazo</label>
-            <input type="date" id="due_date">
-          </div>
-        </div>
-        <div class="field hidden" id="recorField">
-          <label>Recorrência <span class="opt">(repete sozinha; o check zera na virada do período)</span></label>
-          <select id="recorrencia">
-            <option value="">Sem recorrência</option>
-            <option value="diaria">Diária</option>
-            <option value="semanal">Semanal</option>
-            <option value="mensal">Mensal</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Projeto <span class="opt">(opcional)</span></label>
-          <input type="text" id="projeto" list="projetosList" placeholder="Ex: Dina, Bellelli... deixe vazio se for avulso">
-          <datalist id="projetosList"></datalist>
-        </div>
-        <div class="field hidden" id="ideaLinksField">
-          <label>Vínculos <span class="opt">(liga esta ideia a projetos, rotinas e tarefas — tudo interligado)</span></label>
-          <div id="ideaLinksChips" class="idea-chips"></div>
-          <div class="idea-add">
-            <select id="ideaLinkPick"></select>
-            <button type="button" id="btnAddIdeaLink" class="btn-ghost"><span data-icon="plus"></span> Vínculo</button>
+          <!-- Coluna direita: listas -->
+          <div class="modal-col">
+            <div class="field hidden" id="ideaLinksField">
+              <label>Vínculos <span class="opt">(liga a projetos, rotinas e tarefas)</span></label>
+              <div id="ideaLinksChips" class="idea-chips"></div>
+              <div class="idea-add">
+                <select id="ideaLinkPick"></select>
+                <button type="button" id="btnAddIdeaLink" class="btn-ghost"><span data-icon="plus"></span> Vínculo</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Subtarefas <span class="opt">(passos desta demanda)</span></label>
+              <p class="hint">Quebre a demanda em passos. Marque cada um conforme concluir.</p>
+              <div id="subtasksList"></div>
+              <button type="button" id="btnAddSub" class="btn-ghost"><span data-icon="plus"></span> Subtarefa</button>
+            </div>
+            <div class="field">
+              <label>Links e pastas</label>
+              <p class="hint">Link da web (https://...) ou caminho de pasta do PC — a pasta abre no Explorer.</p>
+              <div id="linksList"></div>
+              <button type="button" id="btnAddLink" class="btn-ghost"><span data-icon="plus"></span> Link ou pasta</button>
+            </div>
           </div>
         </div>
-        <div class="row">
-          <div class="field">
-            <label>Quem pediu</label>
-            <input type="text" id="requested_by" placeholder="Ex: João do financeiro">
-          </div>
-          <div class="field">
-            <label>Pra quem enviar</label>
-            <input type="text" id="send_to" placeholder="Ex: Maria / design">
-          </div>
-        </div>
-        <div class="field">
-          <label>Descrição</label>
-          <textarea id="description" rows="3" placeholder="Detalhes..."></textarea>
-        </div>
-        <div class="field">
-          <label>Subtarefas <span class="opt">(passos desta demanda)</span></label>
-          <p class="hint">Quebre a demanda em passos. Marque cada um conforme for concluindo.</p>
-          <div id="subtasksList"></div>
-          <button type="button" id="btnAddSub" class="btn-ghost"><span data-icon="plus"></span> Subtarefa</button>
-        </div>
-        <div class="field">
-          <label>Links e pastas</label>
-          <p class="hint">Link da web (https://...) ou caminho de uma pasta do PC — a pasta abre no Explorer ao clicar.</p>
-          <div id="linksList"></div>
-          <button type="button" id="btnAddLink" class="btn-ghost"><span data-icon="plus"></span> Link ou pasta</button>
-        </div>
+        </div><!-- /.modal-body -->
         <div class="modal-foot">
           <button type="button" id="btnDelete" class="btn-danger hidden">Excluir</button>
           <div class="spacer"></div>
@@ -292,6 +302,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

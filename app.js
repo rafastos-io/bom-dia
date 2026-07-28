@@ -100,10 +100,9 @@ function activeTasks() { return TASKS.filter((t) => t.status !== "concluida"); }
 
 function matchesFilters(t, { ignoreStatus = false, ignoreArea = false } = {}) {
   if (AREA === "projetos" && PROJ_OPEN) {
-    // entra na central: tarefa do projeto OU ideia vinculada a ele
-    const own = (t.projeto || "").trim() === PROJ_OPEN;
-    const linked = (t.idea_links || []).some((l) => l.target_type === "projeto" && l.label === PROJ_OPEN);
-    if (!own && !linked) return false;
+    // central: só as demandas do projeto no grid; ideias vão como post-it à parte
+    if ((t.tipo || "") === "ideia") return false;
+    if ((t.projeto || "").trim() !== PROJ_OPEN) return false;
   } else if (!ignoreArea && !inArea(t, AREA)) return false;
   if (!ignoreStatus) {
     if (FILTER === "ativas" && t.status === "concluida") return false;
@@ -181,6 +180,14 @@ function render() {
   }
 
   board.className = "board view-" + VIEW;
+  if (AREA === "ideias") {
+    board.className = "board view-postits";
+    const ideas = sortTasks(TASKS.filter((t) => matchesFilters(t)));
+    el("empty").classList.toggle("hidden", ideas.length > 0);
+    el("empty").textContent = "Nenhuma ideia ainda. Anote a próxima que surgir 💡";
+    ideas.forEach((i) => board.appendChild(postit(i)));
+    injectIcons(); return;
+  }
   if (VIEW === "kanban") { renderKanban(board); injectIcons(); return; }
   const list = sortTasks(TASKS.filter((t) => matchesFilters(t)));
   el("empty").classList.toggle("hidden", list.length > 0);
@@ -273,6 +280,48 @@ function openIdeaTarget(tt, id) {
   if (t) openModal(t);
   else toast("Não encontrei o alvo (foi excluído?)", true);
 }
+
+// Post-it: uma ideia vive na sua hierarquia mais profunda (tarefa/rotina > projeto).
+function ideaHome(idea) {
+  const ls = idea.idea_links || [];
+  const t = ls.find((l) => l.target_type === "tarefa");
+  if (t) return { type: "tarefa", id: t.target_id, key: `tarefa:${t.target_id}` };
+  const r = ls.find((l) => l.target_type === "rotina");
+  if (r) return { type: "rotina", id: r.target_id, key: `rotina:${r.target_id}` };
+  const p = ls.find((l) => l.target_type === "projeto");
+  if (p) return { type: "projeto", id: p.target_id, name: p.label, key: `projeto:${p.target_id}` };
+  return null;
+}
+function ideasHomedOnTask(taskId) {
+  return TASKS.filter((t) => (t.tipo || "") === "ideia").filter((i) => {
+    const h = ideaHome(i); return h && (h.type === "tarefa" || h.type === "rotina") && h.id === taskId;
+  });
+}
+function ideasHomedOnProject(projName) {
+  return TASKS.filter((t) => (t.tipo || "") === "ideia").filter((i) => {
+    const h = ideaHome(i); return h && h.type === "projeto" && h.name === projName;
+  });
+}
+function postit(idea, { mini = false, exclude = null } = {}) {
+  const c = document.createElement("div");
+  c.className = "postit" + (mini ? " mini" : "");
+  c.dataset.id = idea.id;
+  const chips = (idea.idea_links || [])
+    .filter((l) => `${l.target_type}:${l.target_id}` !== exclude)
+    .map((l) => ideaChipHTML(l, true)).join("");
+  c.innerHTML = `
+    <div class="postit-pin"></div>
+    <div class="postit-title">${esc(idea.title)}</div>
+    ${idea.description ? `<div class="postit-desc">${esc(idea.description)}</div>` : ""}
+    ${chips ? `<div class="idea-links">${chips}</div>` : ""}`;
+  c.addEventListener("click", (e) => { if (e.target.closest("[data-ilink]")) return; openModal(idea); });
+  c.querySelectorAll("[data-ilink]").forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const [tt, id] = b.dataset.ilink.split(":");
+    openIdeaTarget(tt, Number(id));
+  }));
+  return c;
+}
 function linksHTML(t) {
   return (t.links || []).map((l) =>
     `<button class="link-btn" data-kind="${l.kind}" data-target="${esc(l.target)}" title="${esc(l.target)}">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</button>`
@@ -283,13 +332,10 @@ function subtasksHTML(t) {
   if (!subs.length) return "";
   const done = subs.filter((s) => s.done).length;
   const pct = Math.round((done / subs.length) * 100);
-  const rows = subs.map((s) =>
-    `<label class="subrow"><input type="checkbox" data-sub="${s.id}"${s.done ? " checked" : ""}><span class="${s.done ? "sdone" : ""}">${esc(s.title)}</span></label>`
-  ).join("");
+  // No card: só o progresso (o checklist completo fica no popup).
   return `<div class="card-subs">
     <div class="subs-head"><span>Subtarefas</span><span class="subs-count">${done}/${subs.length}</span></div>
     <div class="subs-bar"><i style="width:${pct}%"></i></div>
-    <div class="subs-list">${rows}</div>
   </div>`;
 }
 function subBadge(t) {
@@ -343,10 +389,20 @@ function card(t, metaOpts = {}) {
     ${ideaLinksHTML(t)}
     ${t.description ? `<div class="card-desc">${esc(t.description)}</div>` : ""}
     ${subtasksHTML(t)}
-    ${people ? `<div class="card-people">${people}</div>` : ""}
     ${links ? `<div class="card-links">${links}</div>` : ""}
     <div class="card-foot">${routineHTML(t)}${statusSelectHTML(t)}</div>`;
   wireCard(c, t); addDrag(c, t);
+  // ideias vinculadas a esta tarefa/rotina aparecem aqui dentro (post-it)
+  if (!isIdea) {
+    const homed = ideasHomedOnTask(t.id);
+    if (homed.length) {
+      const wrap = document.createElement("div");
+      wrap.className = "card-ideas";
+      const exKey = `${t.tipo === "rotina" ? "rotina" : "tarefa"}:${t.id}`;
+      homed.forEach((i) => wrap.appendChild(postit(i, { mini: true, exclude: exKey })));
+      c.insertBefore(wrap, c.querySelector(".card-foot"));
+    }
+  }
   return c;
 }
 
@@ -490,11 +546,17 @@ function renderProjectCentral(board) {
 
 function renderProjectTasks(board) {
   board.className = "board view-" + VIEW;
-  if (VIEW === "kanban") { renderKanban(board); return; }
+  const projIdeas = ideasHomedOnProject(PROJ_OPEN);
+  if (VIEW === "kanban") {
+    renderKanban(board);
+    if (projIdeas.length) { const strip = document.createElement("div"); strip.className = "postit-strip"; projIdeas.forEach((i) => strip.appendChild(postit(i))); board.appendChild(strip); }
+    return;
+  }
   const list = sortTasks(TASKS.filter((t) => matchesFilters(t)));
-  el("empty").classList.toggle("hidden", list.length > 0);
+  el("empty").classList.toggle("hidden", list.length > 0 || projIdeas.length > 0);
   el("empty").textContent = "Nenhuma demanda neste projeto ainda. Use “Adicionar”.";
   for (const t of list) board.appendChild(VIEW === "lista" ? listRow(t) : card(t, { hideProjeto: true }));
+  projIdeas.forEach((i) => board.appendChild(postit(i)));
 }
 
 // Anotações (bloco de notas por "arquivos") ---------------------------
@@ -848,8 +910,18 @@ function fillIdeaLinkPick(selfId) {
     .map((t) => `<option value="rotina:${t.id}">${esc(t.title)}</option>`);
   const tars = TASKS.filter((t) => (t.tipo || "tarefa") === "tarefa" && t.id !== selfId && !has.has(`tarefa:${t.id}`))
     .map((t) => `<option value="tarefa:${t.id}">${esc(t.title)}</option>`);
-  const html = grp("Projetos", projs) + grp("Rotinas", rots) + grp("Tarefas", tars);
-  sel.innerHTML = html || `<option value="">Nada mais pra vincular</option>`;
+  const groups = grp("Projetos", projs) + grp("Rotinas", rots) + grp("Tarefas", tars);
+  const placeholder = `<option value="" disabled selected>Escolher para vincular…</option>`;
+  sel.innerHTML = placeholder + (groups || `<option value="" disabled>Nada mais pra vincular</option>`);
+}
+function addIdeaLinkFromPick() {
+  const sel = el("ideaLinkPick");
+  const v = sel.value;
+  if (!v || !v.includes(":")) return;
+  const [tt, id] = v.split(":");
+  const label = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "";
+  IDEA_LINKS.push({ target_type: tt, target_id: Number(id), label });
+  renderIdeaChipsModal(); fillIdeaLinkPick(IDEA_SELF);
 }
 function openModal(task, presets = {}) {
   el("taskForm").reset(); el("linksList").innerHTML = ""; el("subtasksList").innerHTML = "";
@@ -1179,15 +1251,8 @@ el("btnSaveConfig").addEventListener("click", async () => {
 });
 el("taskForm").addEventListener("submit", saveTask);
 el("tipo").addEventListener("change", () => { syncRecorField(); syncIdeaField(); });
-el("btnAddIdeaLink").addEventListener("click", () => {
-  const sel = el("ideaLinkPick");
-  const v = sel.value;
-  if (!v || !v.includes(":")) return;
-  const [tt, id] = v.split(":");
-  const label = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "";
-  IDEA_LINKS.push({ target_type: tt, target_id: Number(id), label });
-  renderIdeaChipsModal(); fillIdeaLinkPick(IDEA_SELF);
-});
+el("ideaLinkPick").addEventListener("change", addIdeaLinkFromPick); // vincula na hora que escolhe
+el("btnAddIdeaLink").addEventListener("click", addIdeaLinkFromPick);  // botão continua funcionando
 el("btnDelete").addEventListener("click", deleteTask);
 el("btnAddLink").addEventListener("click", () => el("linksList").appendChild(blankLinkRow()));
 el("btnAddSub").addEventListener("click", () => el("subtasksList").appendChild(blankSubRow()));
