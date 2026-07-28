@@ -10,7 +10,7 @@ let VIEW = localStorage.getItem("bomdia_view") || "cards";
 let CONFIG = { configured: false, name: "" };
 
 const el = (id) => document.getElementById(id);
-const AREA_LABEL = { hoje: "Hoje", projetos: "Projetos", ideias: "Ideias", rotina: "Rotina" };
+const AREA_LABEL = { hoje: "Hoje", agenda: "Agenda", projetos: "Projetos", ideias: "Ideias", rotina: "Rotina" };
 const TIPO_LABEL = { tarefa: "Tarefa", ideia: "Ideia", rotina: "Rotina" };
 const AREA_TIPO = { hoje: "tarefa", ideias: "ideia", rotina: "rotina" }; // área -> tipo preset
 const PRIO_RANK = { alta: 0, media: 1, baixa: 2 };
@@ -20,6 +20,7 @@ const PRIO_LABEL = { alta: "Alta", media: "Média", baixa: "Baixa" };
 function inArea(t, area) {
   const tipo = t.tipo || "tarefa";
   if (area === "hoje") return tipo === "tarefa";
+  if (area === "agenda") return !!(t.due_date || "").trim();
   if (area === "ideias") return tipo === "ideia";
   if (area === "rotina") return tipo === "rotina";
   if (area === "projetos") return !!(t.projeto || "").trim();
@@ -31,6 +32,7 @@ const S = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="ro
 const ICONS = {
   sun: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" ${S}><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,
+  calendar: `<svg viewBox="0 0 24 24" ${S}><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>`,
   bulb: `<svg viewBox="0 0 24 24" ${S}><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg>`,
   repeat: `<svg viewBox="0 0 24 24" ${S}><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
   gear: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.2V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4.1 15H4a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.2-2.7l-.1-.1A2 2 0 1 1 8 5.4l.1.1A1.6 1.6 0 0 0 11 4.4V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8Z"/></svg>`,
@@ -124,6 +126,18 @@ function render() {
   if (isHoje) renderDashboard();
   else el("areaTitle").textContent = AREA_LABEL[AREA];
 
+  // Agenda: calendário mensal no lugar da barra de ferramentas + board
+  const isAgenda = AREA === "agenda";
+  document.querySelectorAll(".toolbar").forEach((t) => t.classList.toggle("hidden", isAgenda));
+  el("calendar").classList.toggle("hidden", !isAgenda);
+  if (isAgenda) {
+    el("board").classList.add("hidden");
+    el("empty").classList.add("hidden");
+    renderCalendar();
+    injectIcons();
+    return;
+  }
+
   el("statusFilters").style.opacity = VIEW === "kanban" ? ".4" : "1";
   el("statusFilters").style.pointerEvents = VIEW === "kanban" ? "none" : "auto";
   [...el("viewToggle").children].forEach((b) => b.classList.toggle("active", b.dataset.view === VIEW));
@@ -190,6 +204,26 @@ function linksHTML(t) {
     `<button class="link-btn" data-kind="${l.kind}" data-target="${esc(l.target)}" title="${esc(l.target)}">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</button>`
   ).join("");
 }
+function subtasksHTML(t) {
+  const subs = t.subtasks || [];
+  if (!subs.length) return "";
+  const done = subs.filter((s) => s.done).length;
+  const pct = Math.round((done / subs.length) * 100);
+  const rows = subs.map((s) =>
+    `<label class="subrow"><input type="checkbox" data-sub="${s.id}"${s.done ? " checked" : ""}><span class="${s.done ? "sdone" : ""}">${esc(s.title)}</span></label>`
+  ).join("");
+  return `<div class="card-subs">
+    <div class="subs-head"><span>Subtarefas</span><span class="subs-count">${done}/${subs.length}</span></div>
+    <div class="subs-bar"><i style="width:${pct}%"></i></div>
+    <div class="subs-list">${rows}</div>
+  </div>`;
+}
+function subBadge(t) {
+  const subs = t.subtasks || [];
+  if (!subs.length) return "";
+  const done = subs.filter((s) => s.done).length;
+  return ` <span class="sub-badge${done === subs.length ? " full" : ""}">☑ ${done}/${subs.length}</span>`;
+}
 function statusSelectHTML(t) {
   return `<select class="status-select">
     <option value="aberta"${t.status === "aberta" ? " selected" : ""}>Aberta</option>
@@ -202,6 +236,11 @@ function wireCard(c, t) {
   const sel = c.querySelector(".status-select");
   if (sel) sel.addEventListener("change", async (e) => { await api("PUT", `/api/tasks/${t.id}`, { status: e.target.value }); loadTasks(); });
   c.querySelectorAll(".link-btn").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.kind, b.dataset.target)));
+  c.querySelectorAll("[data-sub]").forEach((cb) => cb.addEventListener("change", async (e) => {
+    e.stopPropagation();
+    await api("PUT", `/api/subtasks/${cb.dataset.sub}`, { done: cb.checked ? 1 : 0 });
+    loadTasks();
+  }));
 }
 
 function card(t, metaOpts = {}) {
@@ -216,6 +255,7 @@ function card(t, metaOpts = {}) {
     <div class="card-head"><div class="card-accent"></div><div class="card-title">${esc(t.title)}</div></div>
     <div class="card-meta">${metaHTML(t, metaOpts)}</div>
     ${t.description ? `<div class="card-desc">${esc(t.description)}</div>` : ""}
+    ${subtasksHTML(t)}
     ${people ? `<div class="card-people">${people}</div>` : ""}
     ${links ? `<div class="card-links">${links}</div>` : ""}
     <div class="card-foot">${statusSelectHTML(t)}</div>`;
@@ -230,7 +270,7 @@ function listRow(t) {
   const people = [t.requested_by && `de ${esc(t.requested_by)}`, t.send_to && `→ ${esc(t.send_to)}`].filter(Boolean).join("  ");
   r.innerHTML = `
     <span class="dot dot-${t.priority}" title="${PRIO_LABEL[t.priority]}"></span>
-    <span class="list-title card-title">${esc(t.title)}</span>
+    <span class="list-title card-title">${esc(t.title)}${subBadge(t)}</span>
     <span class="list-people">${people}</span>
     <span class="list-due">${t.due_date ? (isLate(t) ? "⚠ " : "") + fmtDate(t.due_date) : ""}</span>
     <span class="list-links">${linksHTML(t)}</span>
@@ -286,6 +326,80 @@ function refreshProjetosDatalist() {
   dl.innerHTML = nomes.map((n) => `<option value="${esc(n)}">`).join("");
 }
 
+// --- Visão Agenda (calendário mensal) -------------------------------
+let CAL = new Date(); // qualquer data dentro do mês exibido
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+function localIso(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+function renderCalendar() {
+  const cont = el("calendar");
+  const y = CAL.getFullYear(), m = CAL.getMonth();
+  const todayIso = localIso(new Date());
+
+  // agrupa tarefas por dia de prazo
+  const byDay = {};
+  for (const t of TASKS) {
+    const d = (t.due_date || "").trim();
+    if (!d) continue;
+    (byDay[d] = byDay[d] || []).push(t);
+  }
+
+  const first = new Date(y, m, 1);
+  const startWd = first.getDay();                       // 0 = domingo
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const weeks = Math.ceil((startWd + daysInMonth) / 7);
+  const gridStart = new Date(y, m, 1 - startWd);
+
+  let cells = "";
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    const iso = localIso(d);
+    const inMonth = d.getMonth() === m;
+    const isToday = iso === todayIso;
+    const items = (byDay[iso] || []).slice().sort((a, b) =>
+      (PRIO_RANK[a.priority] - PRIO_RANK[b.priority]) || a.title.localeCompare(b.title, "pt"));
+    const chips = items.map((t) => {
+      const done = t.status === "concluida";
+      const late = !done && iso < todayIso;
+      return `<button class="cal-chip prio-${t.priority}${done ? " done" : ""}${late ? " late" : ""}" data-id="${t.id}" title="${esc(t.title)}">${esc(t.title)}</button>`;
+    }).join("");
+    cells += `<div class="cal-cell${inMonth ? "" : " out"}${isToday ? " today" : ""}" data-iso="${iso}">
+      <div class="cal-daynum">${d.getDate()}</div>
+      <div class="cal-chips">${chips}</div>
+    </div>`;
+  }
+
+  const semPrazo = TASKS.filter((t) => !(t.due_date || "").trim() && t.status !== "concluida").length;
+
+  cont.innerHTML = `
+    <div class="cal-bar">
+      <div class="cal-title">${MESES[m]} <span class="cal-year">${y}</span></div>
+      <div class="cal-nav">
+        <button class="cal-btn" id="calPrev" title="Mês anterior">‹</button>
+        <button class="cal-today" id="calToday">Hoje</button>
+        <button class="cal-btn" id="calNext" title="Próximo mês">›</button>
+      </div>
+    </div>
+    <div class="cal-grid cal-head">${WEEKDAYS.map((w) => `<div class="cal-wd">${w}</div>`).join("")}</div>
+    <div class="cal-grid cal-body">${cells}</div>
+    ${semPrazo ? `<p class="cal-foot">${semPrazo} tarefa${semPrazo > 1 ? "s" : ""} sem prazo — ${semPrazo > 1 ? "não aparecem" : "não aparece"} aqui. Defina um prazo pra vê-${semPrazo > 1 ? "las" : "la"} no calendário.</p>` : ""}`;
+
+  el("calPrev").addEventListener("click", () => { CAL = new Date(y, m - 1, 1); renderCalendar(); });
+  el("calNext").addEventListener("click", () => { CAL = new Date(y, m + 1, 1); renderCalendar(); });
+  el("calToday").addEventListener("click", () => { CAL = new Date(); renderCalendar(); });
+  cont.querySelectorAll(".cal-chip").forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const t = TASKS.find((x) => String(x.id) === b.dataset.id);
+    if (t) openModal(t);
+  }));
+  cont.querySelectorAll(".cal-cell").forEach((c) => c.addEventListener("click", () =>
+    openModal(null, { due_date: c.dataset.iso })));
+}
+
 // --- Drag & drop ----------------------------------------------------
 let DRAG_ID = null;
 function addDrag(node, t) {
@@ -326,8 +440,24 @@ function blankLinkRow(kind = "web", label = "", target = "") {
   row.querySelector(".rm").addEventListener("click", () => row.remove());
   return row;
 }
+function blankSubRow(title = "", done = false) {
+  const row = document.createElement("div");
+  row.className = "sub-row";
+  row.innerHTML = `
+    <input type="checkbox" class="s-done"${done ? " checked" : ""}>
+    <input class="s-title" placeholder="Passo desta demanda..." value="${esc(title)}">
+    <button type="button" class="rm">✕</button>`;
+  row.querySelector(".rm").addEventListener("click", () => row.remove());
+  return row;
+}
+function collectSubtasks() {
+  return [...el("subtasksList").querySelectorAll(".sub-row")].map((r) => ({
+    title: r.querySelector(".s-title").value,
+    done: r.querySelector(".s-done").checked ? 1 : 0,
+  })).filter((s) => s.title.trim());
+}
 function openModal(task, presets = {}) {
-  el("taskForm").reset(); el("linksList").innerHTML = "";
+  el("taskForm").reset(); el("linksList").innerHTML = ""; el("subtasksList").innerHTML = "";
   if (task) {
     el("modalTitle").textContent = "Editar tarefa";
     el("taskId").value = task.id;
@@ -340,6 +470,7 @@ function openModal(task, presets = {}) {
     el("send_to").value = task.send_to || "";
     el("description").value = task.description || "";
     (task.links || []).forEach((l) => el("linksList").appendChild(blankLinkRow(l.kind, l.label, l.target)));
+    (task.subtasks || []).forEach((s) => el("subtasksList").appendChild(blankSubRow(s.title, s.done)));
     el("btnDelete").classList.remove("hidden");
   } else {
     el("modalTitle").textContent = "Nova tarefa";
@@ -364,7 +495,7 @@ async function saveTask(e) {
     title: el("title").value, tipo: el("tipo").value, projeto: el("projeto").value.trim(),
     priority: el("priority").value, due_date: el("due_date").value,
     requested_by: el("requested_by").value, send_to: el("send_to").value,
-    description: el("description").value, links: collectLinks(),
+    description: el("description").value, links: collectLinks(), subtasks: collectSubtasks(),
   };
   const id = el("taskId").value;
   if (id) await api("PUT", `/api/tasks/${id}`, payload);
@@ -429,6 +560,8 @@ function reviewCard(t) {
     <div class="rcard-top"><input class="r-title" value="${esc(t.title)}"><button type="button" class="rm" title="Descartar">✕</button></div>
     ${t.description ? `<div class="rcard-desc">${esc(t.description)}</div>` : ""}
     ${t.motivo ? `<div class="rcard-motivo">${esc(t.motivo)}</div>` : ""}
+    ${(t.subtasks && t.subtasks.length) ? `<ul class="rcard-subs">${t.subtasks.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
+    ${(t.links && t.links.length) ? `<div class="rcard-links">${t.links.map((l) => `<span class="rlink">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</span>`).join("")}</div>` : ""}
     <div class="rcard-controls">
       <select class="r-tipo">${opt("tarefa", t.tipo, "Tarefa")}${opt("ideia", t.tipo, "Ideia")}${opt("rotina", t.tipo, "Rotina")}</select>
       <select class="r-prio">${opt("alta", t.priority, "Alta")}${opt("media", t.priority, "Média")}${opt("baixa", t.priority, "Baixa")}</select>
@@ -453,6 +586,8 @@ async function createAllFromReview() {
       due_date: c.querySelector(".r-date").value,
       requested_by: t.requested_by || "",
       send_to: t.send_to || "",
+      subtasks: t.subtasks || [],
+      links: t.links || [],
     });
   }
   closeOverlay("assistantModal");
@@ -516,6 +651,7 @@ el("btnSaveConfig").addEventListener("click", async () => {
 el("taskForm").addEventListener("submit", saveTask);
 el("btnDelete").addEventListener("click", deleteTask);
 el("btnAddLink").addEventListener("click", () => el("linksList").appendChild(blankLinkRow()));
+el("btnAddSub").addEventListener("click", () => el("subtasksList").appendChild(blankSubRow()));
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => closeOverlay(b.dataset.close)));
 document.querySelectorAll(".modal-overlay").forEach((ov) => ov.addEventListener("click", (e) => { if (e.target === ov) closeOverlay(ov.id); }));
 el("search").addEventListener("input", (e) => { SEARCH = e.target.value; render(); });

@@ -58,6 +58,14 @@ def init_db():
             target   TEXT NOT NULL,
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS subtasks (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id  INTEGER NOT NULL,
+            title    TEXT NOT NULL,
+            done     INTEGER DEFAULT 0,
+            position INTEGER DEFAULT 0,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
         """
     )
     # Migracoes incrementais (idempotentes)
@@ -113,10 +121,30 @@ def api_key_ok(key):
     return bool(key) and key.strip().startswith("nvapi-")
 
 
-def task_to_dict(row, links):
+def task_to_dict(row, links, subtasks):
     d = dict(row)
     d["links"] = [dict(l) for l in links]
+    d["subtasks"] = [dict(s) for s in subtasks]
     return d
+
+
+def _replace_subtasks(conn, task_id, items):
+    """Substitui todas as subtarefas de uma tarefa. Aceita strings ou dicts."""
+    conn.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,))
+    for i, s in enumerate(items or []):
+        if isinstance(s, str):
+            title, done = s.strip(), 0
+        elif isinstance(s, dict):
+            title = (s.get("title") or "").strip()
+            done = 1 if s.get("done") else 0
+        else:
+            continue
+        if not title:
+            continue
+        conn.execute(
+            "INSERT INTO subtasks (task_id, title, done, position) VALUES (?,?,?,?)",
+            (task_id, title, done, i),
+        )
 
 
 def list_tasks():
@@ -132,7 +160,11 @@ def list_tasks():
         links = conn.execute(
             "SELECT * FROM links WHERE task_id = ? ORDER BY id", (t["id"],)
         ).fetchall()
-        result.append(task_to_dict(t, links))
+        subs = conn.execute(
+            "SELECT id, title, done, position FROM subtasks WHERE task_id = ? ORDER BY position, id",
+            (t["id"],),
+        ).fetchall()
+        result.append(task_to_dict(t, links, subs))
     conn.close()
     return result
 
@@ -169,6 +201,7 @@ def create_task(data):
             "INSERT INTO links (task_id, kind, label, target) VALUES (?,?,?,?)",
             (task_id, link.get("kind", "web"), (link.get("label") or "").strip(), target),
         )
+    _replace_subtasks(conn, task_id, data.get("subtasks", []))
     conn.commit()
     conn.close()
     return task_id
@@ -197,6 +230,21 @@ def update_task(task_id, data):
                 "INSERT INTO links (task_id, kind, label, target) VALUES (?,?,?,?)",
                 (task_id, link.get("kind", "web"), (link.get("label") or "").strip(), target),
             )
+    # Se o payload trouxer subtasks, substitui todas.
+    if "subtasks" in data:
+        _replace_subtasks(conn, task_id, data["subtasks"])
+    conn.commit()
+    conn.close()
+
+
+def update_subtask(sub_id, data):
+    conn = get_db()
+    if "done" in data:
+        conn.execute("UPDATE subtasks SET done = ? WHERE id = ?",
+                     (1 if data["done"] else 0, sub_id))
+    if "title" in data:
+        conn.execute("UPDATE subtasks SET title = ? WHERE id = ?",
+                     ((data["title"] or "").strip(), sub_id))
     conn.commit()
     conn.close()
 
@@ -204,6 +252,7 @@ def update_task(task_id, data):
 def delete_task(task_id):
     conn = get_db()
     conn.execute("DELETE FROM links WHERE task_id = ?", (task_id,))
+    conn.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,))
     conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     conn.commit()
     conn.close()
@@ -248,14 +297,26 @@ Regras:
      "projeto": "nome do projeto/cliente a que isso pertence, ou \\"\\" se for avulso",
      "requested_by": "quem pediu, se mencionado, senao \\"\\"",
      "send_to": "para quem enviar, se mencionado, senao \\"\\"",
+     "subtasks": ["passo 1", "passo 2"]  (lista de passos desta MESMA demanda; [] se nao houver),
+     "links": [{"kind": "web" ou "pasta", "label": "apelido curto", "target": "url ou caminho"}]  ([] se nao houver),
      "motivo": "1 frase curta explicando a prioridade/urgencia ou o fluxo"}
   ]}
 - Duas dimensoes independentes:
   * "tipo" = a natureza: "tarefa" (algo a fazer/entregar), "ideia" (pensamento solto pra depois),
     "rotina" (recorrente/habito).
-  * "projeto" = o agrupador. Se a demanda pertence a um projeto ou cliente (ex.: "Dina",
-    "Bellelli", "campanha X"), coloque o nome. Elas se cruzam: pode haver uma "ideia" do
-    projeto "Dina" (tipo=ideia, projeto=Dina) ou uma "rotina" de um projeto.
+  * "projeto" = o agrupador. Use SO quando houver demandas realmente independentes do mesmo
+    cliente/iniciativa (ex.: "Dina", "Bellelli", "campanha X"). Elas se cruzam: pode haver uma
+    "ideia" do projeto "Dina" (tipo=ideia, projeto=Dina) ou uma "rotina" de um projeto.
+- REGRA IMPORTANTE sobre subtasks vs projeto: se o texto descreve UM entregavel unico com varios
+  passos, gere UMA tarefa com esses passos em "subtasks" - NUNCA varias tarefas, e NUNCA invente
+  um projeto so pra segurar os passos. Ex.: "preciso finalizar a apresentacao pro Danilo Nunes:
+  montar os slides, revisar os numeros e ensaiar" -> UMA tarefa {"title": "Finalizar apresentacao
+  pro Danilo Nunes", "projeto": "", "subtasks": ["Montar os slides", "Revisar os numeros",
+  "Ensaiar"]}. So separe em varias tarefas quando forem entregas de fato independentes.
+- "links": extraia QUALQUER url (http/https) ou caminho de pasta que a pessoa mencionar e coloque
+  no campo "links" da tarefa a que pertence. kind="web" para links da internet (ex.: Canva, Drive,
+  YouTube), kind="pasta" para caminhos de pasta do PC (ex.: C:\\...). Nunca descarte um link que a
+  pessoa passou - ele quase sempre e o material da demanda.
 - Prioridade pela urgencia real: prazo curto ou cobranca = alta.
 - Resolva datas relativas ("sexta que vem", "amanha", "semana que vem") usando a data de hoje.
 - Se o texto tiver varias demandas, separe em varios itens e ordene do mais importante ao menos.
@@ -321,6 +382,23 @@ def ai_parse(text):
         if not isinstance(t, dict) or not (t.get("title") or "").strip():
             continue
         tipo = t.get("tipo", "tarefa")
+        # subtarefas: aceita lista de strings ou de dicts {title}
+        subs = []
+        for s in (t.get("subtasks") or []):
+            if isinstance(s, str) and s.strip():
+                subs.append(s.strip())
+            elif isinstance(s, dict) and (s.get("title") or "").strip():
+                subs.append(s["title"].strip())
+        # links: extrai url/pasta que a IA identificou
+        links = []
+        for l in (t.get("links") or []):
+            if not isinstance(l, dict):
+                continue
+            target = (l.get("target") or "").strip()
+            if not target:
+                continue
+            kind = l.get("kind") if l.get("kind") in ("web", "pasta") else "web"
+            links.append({"kind": kind, "label": (l.get("label") or "").strip(), "target": target})
         clean.append({
             "title": (t.get("title") or "").strip(),
             "description": (t.get("description") or "").strip(),
@@ -330,6 +408,8 @@ def ai_parse(text):
             "projeto": (t.get("projeto") or "").strip(),
             "requested_by": (t.get("requested_by") or "").strip(),
             "send_to": (t.get("send_to") or "").strip(),
+            "subtasks": subs,
+            "links": links,
             "motivo": (t.get("motivo") or "").strip(),
         })
     return clean
@@ -344,6 +424,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, *args):
         pass  # silencia o log padrao
+
+    def end_headers(self):
+        # App local de dev/uso pessoal: nunca cachear, pra edicoes aparecerem no refresh.
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        super().end_headers()
 
     def _json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -406,6 +491,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         parts = parsed.path.strip("/").split("/")
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "tasks":
             update_task(int(parts[2]), self._read_json())
+            return self._json({"ok": True})
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "subtasks":
+            update_subtask(int(parts[2]), self._read_json())
             return self._json({"ok": True})
         return self._json({"error": "rota nao encontrada"}, 404)
 

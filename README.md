@@ -14,6 +14,11 @@ pra fazer.
   - 📁 **Pasta** — cola o caminho de uma pasta do PC e, ao clicar, ela **abre no Explorer**.
     (Só funciona por rodar localmente.)
 - **3 modos de visualização**: Cards, Lista e Kanban (com arrastar-e-soltar entre colunas).
+- **Agenda (calendário)**: visão mensal das demandas pelos prazos. Clique numa demanda para editar,
+  ou num dia vazio para criar já com aquela data. Hoje em destaque, atrasadas marcadas em vermelho.
+- **Subtarefas**: quebre uma demanda em passos (checklist). O card mostra o progresso e deixa marcar
+  cada passo direto; a lista mostra um selo `☑ 2/3`. O assistente de IA agrupa passos de um mesmo
+  entregável como subtarefas — em vez de criar vários itens ou um projeto só pra segurá-los.
 - **Filtros**: status, prioridade, só atrasadas, e ordenação (prioridade & prazo / prazo / recentes / A–Z).
 - **Roda na bandeja do Windows** — ícone de sol ao lado do relógio, sem janela de terminal.
 
