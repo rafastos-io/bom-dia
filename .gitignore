@@ -1,6 +1,7 @@
 # Banco local com dados pessoais - nao versionar
 bomdia.db
 bomdia.db-journal
+bomdia.db.bak-*
 
 # Chave da API / configuracao pessoal - NUNCA versionar
 config.json

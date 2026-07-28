@@ -33,6 +33,7 @@ const ICONS = {
   sun: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" ${S}><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,
   calendar: `<svg viewBox="0 0 24 24" ${S}><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>`,
+  grip: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>`,
   bulb: `<svg viewBox="0 0 24 24" ${S}><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg>`,
   repeat: `<svg viewBox="0 0 24 24" ${S}><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
   gear: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.2V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4.1 15H4a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.2-2.7l-.1-.1A2 2 0 1 1 8 5.4l.1.1A1.6 1.6 0 0 0 11 4.4V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8Z"/></svg>`,
@@ -444,11 +445,38 @@ function blankSubRow(title = "", done = false) {
   const row = document.createElement("div");
   row.className = "sub-row";
   row.innerHTML = `
+    <span class="s-drag" title="Arrastar para reordenar">${ICONS.grip}</span>
     <input type="checkbox" class="s-done"${done ? " checked" : ""}>
     <input class="s-title" placeholder="Passo desta demanda..." value="${esc(title)}">
     <button type="button" class="rm">✕</button>`;
   row.querySelector(".rm").addEventListener("click", () => row.remove());
+  // drag-and-drop para reordenar (só inicia pelo puxador, pra não atrapalhar o texto)
+  const handle = row.querySelector(".s-drag");
+  handle.addEventListener("mousedown", () => { row.draggable = true; });
+  row.addEventListener("mouseup", () => { row.draggable = false; });
+  row.addEventListener("dragstart", () => row.classList.add("dragging"));
+  row.addEventListener("dragend", () => { row.classList.remove("dragging"); row.draggable = false; });
   return row;
+}
+function subAfterElement(list, y) {
+  const els = [...list.querySelectorAll(".sub-row:not(.dragging)")];
+  let closest = { offset: -Infinity, element: null };
+  for (const child of els) {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) closest = { offset, element: child };
+  }
+  return closest.element;
+}
+function enableSubReorder(list) {
+  list.addEventListener("dragover", (e) => {
+    const dragging = list.querySelector(".sub-row.dragging");
+    if (!dragging) return;
+    e.preventDefault();
+    const after = subAfterElement(list, e.clientY);
+    if (after == null) list.appendChild(dragging);
+    else list.insertBefore(dragging, after);
+  });
 }
 function collectSubtasks() {
   return [...el("subtasksList").querySelectorAll(".sub-row")].map((r) => ({
@@ -512,27 +540,141 @@ async function deleteTask() {
 async function openAssistant() {
   await loadStatus();
   el("aiReview").classList.add("hidden"); el("aiReview").innerHTML = "";
+  el("aiQuestions").classList.add("hidden"); el("aiQuestions").innerHTML = "";
   const needKey = !CONFIG.configured;
   el("aiSetup").classList.toggle("hidden", !needKey);
   el("aiChat").classList.toggle("hidden", needKey);
   openOverlay("assistantModal");
   if (!needKey) el("aiText").focus();
 }
+let PENDING = [];    // tarefas em preparo (entre parse e criação)
+let PROJETOS = [];   // projetos existentes, pra sugerir
 async function organize() {
   const text = el("aiText").value.trim();
   if (!text) { toast("Escreve alguma coisa primeiro 🙂", true); return; }
   el("aiChat").classList.add("hidden");
-  const review = el("aiReview");
-  review.classList.remove("hidden");
-  review.innerHTML = `<div class="loading"><span class="spinner"></span> Organizando suas ideias...</div>`;
+  const q = el("aiQuestions");
+  q.classList.remove("hidden");
+  q.innerHTML = `<div class="loading"><span class="spinner"></span> Organizando suas ideias...</div>`;
   const r = await api("POST", "/api/ai/parse", { text });
   if (r.error) {
-    review.innerHTML = "";
+    q.classList.add("hidden"); q.innerHTML = "";
     el("aiChat").classList.remove("hidden");
     toast(r.error, true);
     return;
   }
-  renderReview(r.tarefas || []);
+  PENDING = r.tarefas || [];
+  PROJETOS = r.projetos || [];
+  if (!PENDING.length) {
+    q.classList.add("hidden"); q.innerHTML = "";
+    el("aiChat").classList.remove("hidden");
+    toast("Não consegui extrair tarefas. Tenta detalhar mais?", true);
+    return;
+  }
+  const anyGaps = PENDING.some((t) => (t.perguntas || []).length);
+  if (anyGaps) renderQuestions();
+  else { q.classList.add("hidden"); renderReview(PENDING); }
+}
+
+// --- Passo de perguntas (lacunas detectadas pelo back-end) -----------
+function questionModule(p) {
+  if (p.campo === "projeto") {
+    const chips = (p.opcoes || []).map((o) => `<button type="button" class="qchip" data-val="${esc(o)}">${esc(o)}</button>`).join("");
+    return `<div class="qmod" data-campo="projeto">
+      <div class="qmod-q">${esc(p.pergunta)}</div>
+      <div class="qchips">${chips}
+        <button type="button" class="qchip qchip-new" data-val="__new">+ Novo</button>
+        <button type="button" class="qchip qchip-skip" data-val="">Sem projeto</button>
+      </div>
+      <input class="qmod-newinput hidden" placeholder="Nome do novo projeto">
+    </div>`;
+  }
+  if (p.campo === "prazo") {
+    return `<div class="qmod" data-campo="prazo">
+      <div class="qmod-q">${esc(p.pergunta)}</div>
+      <div class="qchips">
+        <button type="button" class="qchip qdate-quick" data-days="0">Hoje</button>
+        <button type="button" class="qchip qdate-quick" data-days="1">Amanhã</button>
+        <button type="button" class="qchip qchip-skip" data-val="">Sem prazo</button>
+      </div>
+      <input type="date" class="qmod-date">
+    </div>`;
+  }
+  if (p.campo === "links") {
+    return `<div class="qmod" data-campo="links">
+      <div class="qmod-q">${esc(p.pergunta)}</div>
+      <div class="qlinks"></div>
+      <div class="qchips">
+        <button type="button" class="qchip qlink-add" data-val="add">+ Link ou pasta</button>
+        <button type="button" class="qchip qchip-skip" data-val="">Não tem</button>
+      </div>
+    </div>`;
+  }
+  return "";
+}
+function questionCard(t, i) {
+  const mods = (t.perguntas || []).map((p) => questionModule(p)).join("");
+  return `<div class="qcard" data-idx="${i}"><div class="qcard-title">${esc(t.title)}</div>${mods}</div>`;
+}
+function renderQuestions() {
+  const q = el("aiQuestions");
+  q.classList.remove("hidden");
+  el("aiReview").classList.add("hidden");
+  const cards = PENDING.map((t, i) => (t.perguntas && t.perguntas.length) ? questionCard(t, i) : "").join("");
+  q.innerHTML = `
+    <p class="assistant-lead">Quase lá. Só me confirma o que ficou em aberto:</p>
+    <div class="q-cards">${cards}</div>
+    <div class="modal-foot">
+      <button type="button" class="btn-ghost" id="btnQBack">Voltar</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn-primary" id="btnQNext">Continuar</button>
+    </div>`;
+  injectIcons();
+  q.querySelectorAll(".qchips").forEach((row) => row.addEventListener("click", (e) => {
+    const b = e.target.closest(".qchip"); if (!b) return;
+    const mod = b.closest(".qmod");
+    if (b.classList.contains("qlink-add")) { mod.querySelector(".qlinks").appendChild(blankLinkRow()); return; }
+    if (b.classList.contains("qchip-skip") && mod.dataset.campo === "links") mod.querySelector(".qlinks").innerHTML = "";
+    if (b.classList.contains("qdate-quick")) {
+      const d = new Date(); d.setDate(d.getDate() + Number(b.dataset.days));
+      mod.querySelector(".qmod-date").value = d.toISOString().slice(0, 10);
+    }
+    row.querySelectorAll(".qchip:not(.qlink-add)").forEach((c) => c.classList.remove("sel"));
+    b.classList.add("sel");
+    const ni = mod.querySelector(".qmod-newinput");
+    if (ni) { const isNew = b.dataset.val === "__new"; ni.classList.toggle("hidden", !isNew); if (isNew) ni.focus(); }
+  }));
+  q.querySelectorAll(".qmod-date").forEach((di) => di.addEventListener("input", () =>
+    di.closest(".qmod").querySelectorAll(".qchip").forEach((c) => c.classList.remove("sel"))));
+  el("btnQBack").addEventListener("click", () => {
+    q.classList.add("hidden"); q.innerHTML = "";
+    el("aiChat").classList.remove("hidden");
+  });
+  el("btnQNext").addEventListener("click", applyAnswersAndReview);
+}
+function applyAnswersAndReview() {
+  el("aiQuestions").querySelectorAll(".qcard").forEach((card) => {
+    const t = PENDING[Number(card.dataset.idx)];
+    card.querySelectorAll(".qmod").forEach((mod) => {
+      const campo = mod.dataset.campo;
+      if (campo === "projeto") {
+        const sel = mod.querySelector(".qchip.sel");
+        if (sel) t.projeto = sel.dataset.val === "__new" ? (mod.querySelector(".qmod-newinput").value || "").trim() : sel.dataset.val;
+      } else if (campo === "prazo") {
+        if (mod.querySelector(".qchip-skip.sel")) t.due_date = "";
+        else { const d = mod.querySelector(".qmod-date").value; if (d) t.due_date = d; }
+      } else if (campo === "links") {
+        const links = [...mod.querySelectorAll(".qlinks .link-row")].map((r) => ({
+          kind: r.querySelector("select").value,
+          label: r.querySelector(".l-label").value,
+          target: r.querySelector(".l-target").value,
+        })).filter((l) => l.target.trim());
+        if (links.length) t.links = links;
+      }
+    });
+  });
+  el("aiQuestions").classList.add("hidden");
+  renderReview(PENDING);
 }
 function renderReview(tarefas) {
   const review = el("aiReview");
@@ -542,6 +684,7 @@ function renderReview(tarefas) {
     toast("Não consegui extrair tarefas. Tenta detalhar mais?", true);
     return;
   }
+  review.classList.remove("hidden");
   review.innerHTML = `<p class="review-lead">Organizei em ${tarefas.length} tarefa${tarefas.length > 1 ? "s" : ""}. Ajuste o que quiser e confirme:</p>`;
   tarefas.forEach((t) => review.appendChild(reviewCard(t)));
   const foot = document.createElement("div");
@@ -652,6 +795,7 @@ el("taskForm").addEventListener("submit", saveTask);
 el("btnDelete").addEventListener("click", deleteTask);
 el("btnAddLink").addEventListener("click", () => el("linksList").appendChild(blankLinkRow()));
 el("btnAddSub").addEventListener("click", () => el("subtasksList").appendChild(blankSubRow()));
+enableSubReorder(el("subtasksList"));
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => closeOverlay(b.dataset.close)));
 document.querySelectorAll(".modal-overlay").forEach((ov) => ov.addEventListener("click", (e) => { if (e.target === ov) closeOverlay(ov.id); }));
 el("search").addEventListener("input", (e) => { SEARCH = e.target.value; render(); });

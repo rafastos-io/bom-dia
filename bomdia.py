@@ -415,6 +415,39 @@ def ai_parse(text):
     return clean
 
 
+def list_projetos():
+    """Projetos ja existentes, pra sugerir nas perguntas de lacuna."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT DISTINCT projeto FROM tasks WHERE projeto IS NOT NULL AND TRIM(projeto) <> ''"
+    ).fetchall()
+    conn.close()
+    return sorted({(r[0] or "").strip() for r in rows}, key=str.lower)
+
+
+def build_gaps(task, projetos):
+    """O CODIGO decide quais perguntas fazer, olhando os campos vazios.
+    Cada 'lacuna' vira um modulo de pergunta com o tipo de resposta certo."""
+    gaps = []
+    if not (task.get("projeto") or "").strip():
+        gaps.append({
+            "campo": "projeto", "tipo": "opcoes",
+            "pergunta": "A que projeto isso pertence?",
+            "opcoes": projetos,
+        })
+    if not (task.get("due_date") or "").strip():
+        gaps.append({
+            "campo": "prazo", "tipo": "data",
+            "pergunta": "Tem um prazo?",
+        })
+    if not task.get("links"):
+        gaps.append({
+            "campo": "links", "tipo": "link",
+            "pergunta": "Algum link ou pasta? (Canva, Drive, pasta do PC)",
+        })
+    return gaps
+
+
 # ----------------------------------------------------------------------------
 # Servidor HTTP
 # ----------------------------------------------------------------------------
@@ -483,7 +516,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 tarefas = ai_parse(text)
             except Exception as e:  # noqa: BLE001
                 return self._json({"error": str(e)}, 502)
-            return self._json({"tarefas": tarefas})
+            projetos = list_projetos()
+            for t in tarefas:
+                t["perguntas"] = build_gaps(t, projetos)
+            return self._json({"tarefas": tarefas, "projetos": projetos})
         return self._json({"error": "rota nao encontrada"}, 404)
 
     def do_PUT(self):

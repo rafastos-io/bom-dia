@@ -19,6 +19,9 @@ pra fazer.
 - **Subtarefas**: quebre uma demanda em passos (checklist). O card mostra o progresso e deixa marcar
   cada passo direto; a lista mostra um selo `☑ 2/3`. O assistente de IA agrupa passos de um mesmo
   entregável como subtarefas — em vez de criar vários itens ou um projeto só pra segurá-los.
+- **Assistente que pergunta o que faltou**: no "Organizar meu dia", depois de ler seu texto a IA
+  mostra só as perguntas do que ficou em aberto — projeto (sugerindo os existentes), prazo, links —
+  antes de criar. Você completa o cadastro numa rodada rápida, estilo assistente de verdade.
 - **Filtros**: status, prioridade, só atrasadas, e ordenação (prioridade & prazo / prazo / recentes / A–Z).
 - **Roda na bandeja do Windows** — ícone de sol ao lado do relógio, sem janela de terminal.
 
