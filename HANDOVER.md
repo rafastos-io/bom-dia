@@ -10,16 +10,10 @@ Escrito em 2026-07-28. Idioma do projeto: **português do Brasil (PT-BR)** — r
 
 ## ⚠️ LEIA PRIMEIRO — estado do git
 
-O último commit é **`f329d62` (v5)**. **Toda a v6 está NÃO COMMITADA** no working tree:
-`bomdia.py`, `app.js`, `index.html`, `styles.css`, `README.md` estão modificados (projetos como
-entidade + central isolada + Anotações + Canalizador de links). **Antes de mexer, faça o commit:**
+O último commit é **`71dc6e4` (v7 — Fase 2, Rotinas)**. Working tree limpo.
 
-```bash
-git add -A && git commit -m "v6: projetos como entidade + central (Demandas/Anotacoes/Links)"
-```
-
-Fim das mensagens de commit deve levar o trailer:
-`Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` (ou o do seu agente).
+Fim das mensagens de commit deve levar o trailer do agente que fez o trabalho
+(ex.: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`).
 
 Remoto: https://github.com/rafastos-io/bom-dia (branch `main`).
 
@@ -45,7 +39,7 @@ de verdade** (rodar, `curl`, screenshot) em vez de só planejar; ao fim de um bl
 - Dependências extras (só p/ o ícone da bandeja): `pip install pystray pillow`. O servidor em si é stdlib.
 
 ### Cache / versão dos assets (IMPORTANTE)
-- `index.html` referencia os assets versionados: `styles.css?v=8`, `app.js?v=8`. **Ao editar
+- `index.html` referencia os assets versionados: `styles.css?v=9`, `app.js?v=9`. **Ao editar
   app.js/styles.css, suba o número `?v=` nos dois** (senão o navegador serve cache antigo).
 - O servidor manda `Cache-Control: no-cache` (método `end_headers` em `bomdia.py`).
 - **Mudou o `bomdia.py`? Precisa REINICIAR o app** (bandeja → Sair → abrir de novo). Mudou só
@@ -58,8 +52,13 @@ de verdade** (rodar, `curl`, screenshot) em vez de só planejar; ao fim de um bl
 Tabelas (todas criadas idempotentemente em `init_db()`; migrações são `ALTER ... IF NOT EXISTS`-style):
 
 - **tasks** — `id, title, requested_by, send_to, due_date, priority(alta|media|baixa),
-  description, status(aberta|andamento|concluida), created_at, tipo(tarefa|ideia|rotina), projeto(TEXT)`.
+  description, status(aberta|andamento|concluida), created_at, tipo(tarefa|ideia|rotina), projeto(TEXT),
+  recorrencia(''|diaria|semanal|mensal), feito_em(TEXT)`.
   `area` é coluna legada/ignorada.
+  **Rotinas (v7):** `feito_em` guarda o **identificador do período** do último check — diária: dia ISO
+  (`2026-07-28`); semanal: `2026-W31` (semana ISO); mensal: `2026-07`. `feita` é **calculado** em
+  `task_to_dict` comparando com `periodo_atual()` → o check **reseta sozinho na virada** (sem cron, sem
+  histórico). Quem calcula o período é sempre o back-end.
 - **links** — links de **tarefa**: `id, task_id, kind(web|pasta), label, target`.
 - **subtasks** — checklist de tarefa: `id, task_id, title, done, position`.
 - **projects** — projeto como **entidade**: `id, name(UNIQUE), scope, people, status, collapsed, position, created_at`.
@@ -80,9 +79,11 @@ Tabelas (todas criadas idempotentemente em `init_db()`; migrações são `ALTER 
 ```
 GET    /api/tasks
 POST   /api/tasks                     {title,tipo,projeto,priority,due_date,description,
-                                       requested_by,send_to,links[],subtasks[]}
-PUT    /api/tasks/<id>                (mesmos campos, parciais; links[]/subtasks[] substituem tudo)
+                                       requested_by,send_to,links[],subtasks[],recorrencia}
+PUT    /api/tasks/<id>                (mesmos campos, parciais; links[]/subtasks[] substituem tudo;
+                                       trocar recorrencia/tipo zera feito_em)
 DELETE /api/tasks/<id>
+POST   /api/tasks/<id>/feito          {done}  -> check da rotina no período atual (v7)
 PUT    /api/subtasks/<id>             {done?, title?}
 GET    /api/projects                  (com links[], task_total, task_ativas)
 POST   /api/projects                  {name,scope,people,links[]}
@@ -128,7 +129,8 @@ POST   /api/ai/parse                  {text} -> {tarefas[(com perguntas[])], pro
   aberto/Não tem) → revisão editável → cria. Chave: **quem decide as perguntas é o código** (não
   depende da força do modelo); a IA só extrai/propõe. Prompt do sistema fica em `SYSTEM_PROMPT`.
 - Regra ensinada à IA: preferir **1 tarefa com subtasks** a inventar um projeto com N tarefas;
-  extrair qualquer URL/pasta do texto pro campo `links`.
+  extrair qualquer URL/pasta do texto pro campo `links`; extrair **recorrencia** (diaria/semanal/
+  mensal) quando o texto indicar frequência ("todo dia", "toda sexta") — campo confirmável na revisão.
 
 ---
 
@@ -164,17 +166,13 @@ O usuário valoriza teste real. **Nunca** mexer na instância dele (porta 9463).
 Projetos é o **coração** do sistema. Ideias e rotinas são interligadas a ele.
 Ordem **incremental** (uma fase por vez, testando).
 
-### Fase 2 — Rotinas (recorrência + check)  ← PRÓXIMA
-- Rotina = algo recorrente (diária/semanal/mensal). Hoje "rotina" é só um `tipo` de tarefa que
-  filtra na aba Rotina; falta a mecânica real.
-- **Decidido:** um campo de **recorrência** + um **check "feito"** referente ao **período atual**,
-  que **reseta na virada do período** (SEM histórico/streak — manter simples).
-- Rotina pode pertencer a um projeto (aparece na central dele também).
-- Sugestão de modelo: adicionar em `tasks` (ou tabela própria) `recorrencia(diaria|semanal|mensal)`
-  e `feito_em` (data/período do último "feito"); no front, um botão de check que compara o período
-  atual com `feito_em`. Reaproveitar a aba **Rotina** que já existe.
+### ~~Fase 2 — Rotinas (recorrência + check)~~  ✅ FEITA (v7, commit 71dc6e4)
+Implementado como decidido: `recorrencia` + `feito_em` (período), check reseta na virada, botão
+"Marcar feito hoje/nesta semana/neste mês" nos cards/linhas/kanban, aparece na central do projeto,
+IA extrai recorrência. Ideias de continuação (não decididas): rotinas do dia no dashboard Hoje;
+pergunta de lacuna de recorrência no fluxo do assistente.
 
-### Fase 3 — Ideias (post-it linkável)
+### Fase 3 — Ideias (post-it linkável)  ← PRÓXIMA
 - Ideia = anotação leve, **sem prazo obrigatório**, pegada de post-it.
 - **Decidido:** uma ideia **vincula a VÁRIOS** ao mesmo tempo (projeto + rotina + tarefa) — vínculo
   **múltiplo** (tabela de junção, ex.: `idea_links(idea_id, target_type, target_id)`).
