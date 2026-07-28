@@ -21,8 +21,8 @@ DB_PATH = os.path.join(BASE_DIR, "bomdia.db")
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 PORT = 9463
 
-NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_MODEL = "gpt-4.1-mini"
 TIPOS = ("tarefa", "ideia", "rotina")
 RECORRENCIAS = ("diaria", "semanal", "mensal")
 IDEA_TARGET_TIPOS = ("projeto", "rotina", "tarefa")
@@ -143,34 +143,41 @@ def init_db():
 # Configuracao (chave da API etc.) - fica so no back-end, fora do git
 # ----------------------------------------------------------------------------
 def load_config():
-    cfg = {"name": "", "nvidia_api_key": "", "model": DEFAULT_MODEL}
+    cfg = {"name": "", "openai_api_key": "", "model": DEFAULT_MODEL}
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            cfg.update(json.load(f))
+            data = json.load(f)
+            # compat: aceita chave antiga 'nvidia_api_key' se ainda existir no arquivo
+            if "openai_api_key" not in data and "nvidia_api_key" in data:
+                data["openai_api_key"] = data.pop("nvidia_api_key")
+            cfg.update(data)
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     # variavel de ambiente tem prioridade se estiver setada
-    env_key = os.environ.get("NVIDIA_API_KEY")
+    env_key = os.environ.get("OPENAI_API_KEY")
     if env_key:
-        cfg["nvidia_api_key"] = env_key
+        cfg["openai_api_key"] = env_key
     return cfg
 
 
 def save_config(data):
     cfg = load_config()
-    for k in ("name", "nvidia_api_key", "model"):
+    # aceita o campo novo e, por compat, o antigo vindo do front
+    if "nvidia_api_key" in data and "openai_api_key" not in data:
+        data["openai_api_key"] = data["nvidia_api_key"]
+    for k in ("name", "openai_api_key", "model"):
         if k in data and data[k] is not None:
             cfg[k] = data[k]
     # nao persiste a chave vinda de env var por engano
     to_save = {"name": cfg.get("name", ""),
-               "nvidia_api_key": cfg.get("nvidia_api_key", ""),
+               "openai_api_key": cfg.get("openai_api_key", ""),
                "model": cfg.get("model", DEFAULT_MODEL)}
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(to_save, f, ensure_ascii=False, indent=2)
 
 
 def api_key_ok(key):
-    return bool(key) and key.strip().startswith("nvapi-")
+    return bool(key) and key.strip().startswith("sk-")
 
 
 def periodo_atual(recorrencia):
@@ -611,7 +618,7 @@ def open_folder(path):
 
 
 # ----------------------------------------------------------------------------
-# Assistente de IA (NVIDIA API Catalog - compativel com OpenAI)
+# Assistente de IA (OpenAI - chat/completions)
 # ----------------------------------------------------------------------------
 SYSTEM_PROMPT = """Voce e o assistente do "Bom Dia", um organizador pessoal de demandas.
 Sua personalidade: um secretario discreto, inteligente e confiavel. Fala de forma curta,
@@ -650,6 +657,24 @@ Regras:
   montar os slides, revisar os numeros e ensaiar" -> UMA tarefa {"title": "Finalizar apresentacao
   pro Danilo Nunes", "projeto": "", "subtasks": ["Montar os slides", "Revisar os numeros",
   "Ensaiar"]}. So separe em varias tarefas quando forem entregas de fato independentes.
+- REGRA sobre PROJETO EXPLICITO: quando a pessoa ANUNCIA um projeto - "vou comecar um (novo)
+  projeto chamado X", "projeto X:", "novo projeto: X", "iniciar o projeto X" - isso DEFINE UM
+  UNICO projeto. TODAS as demandas desse texto recebem "projeto": "X". NUNCA crie dois ou mais
+  nomes de projeto a partir de um texto assim - o singular "um projeto" e literal. So use nomes
+  de projeto diferentes quando a pessoa citar, ela mesma, iniciativas/clientes claramente
+  distintos no mesmo texto.
+- HIERARQUIA em 3 niveis: PROJETO (o agrupador) > TAREFA (entregavel/marco que faz sentido
+  concluir sozinho e pode ter prazo/responsavel proprio) > SUBTASK (passo de execucao de UMA
+  tarefa, sem sentido isolado). Teste rapido: se o item poderia ter prazo proprio e ser
+  entregue sozinho, e TAREFA; se so existe pra tocar outra tarefa, e SUBTASK. Nao promova a
+  projeto o que e tarefa, nem a tarefa o que e subtask.
+- Exemplo do caso "um projeto com varias tarefas": "Vou comecar um novo projeto chamado Aurora.
+  Preciso fechar o briefing com o cliente, montar a identidade visual e programar o site." ->
+  {"tarefas": [
+    {"title": "Fechar briefing com o cliente", "projeto": "Aurora", "tipo": "tarefa", "subtasks": []},
+    {"title": "Montar a identidade visual", "projeto": "Aurora", "tipo": "tarefa", "subtasks": []},
+    {"title": "Programar o site", "projeto": "Aurora", "tipo": "tarefa", "subtasks": []}
+  ]}. Repare: UM projeto ("Aurora") em TODAS, TRES tarefas - nunca dois projetos.
 - "links": extraia QUALQUER url (http/https) ou caminho de pasta que a pessoa mencionar e coloque
   no campo "links" da tarefa a que pertence. kind="web" para links da internet (ex.: Canva, Drive,
   YouTube), kind="pasta" para caminhos de pasta do PC (ex.: C:\\...). Nunca descarte um link que a
@@ -661,19 +686,20 @@ Regras:
 """
 
 
-def call_nvidia(messages, model=None, temperature=0.2, timeout=45):
+def call_openai(messages, model=None, temperature=0.2, timeout=45):
     cfg = load_config()
-    key = cfg.get("nvidia_api_key", "").strip()
+    key = cfg.get("openai_api_key", "").strip()
     if not api_key_ok(key):
-        raise RuntimeError("Chave da NVIDIA nao configurada (esperado algo como nvapi-...).")
+        raise RuntimeError("Chave da OpenAI nao configurada (esperado algo como sk-...).")
     payload = json.dumps({
         "model": model or cfg.get("model", DEFAULT_MODEL),
         "messages": messages,
         "temperature": temperature,
         "max_tokens": 1024,
+        "response_format": {"type": "json_object"},
     }).encode("utf-8")
     req = urllib.request.Request(
-        NVIDIA_URL, data=payload, method="POST",
+        OPENAI_URL, data=payload, method="POST",
         headers={"Content-Type": "application/json",
                  "Authorization": f"Bearer {key}"},
     )
@@ -683,10 +709,10 @@ def call_nvidia(messages, model=None, temperature=0.2, timeout=45):
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", "ignore")[:300]
         if e.code in (401, 403):
-            raise RuntimeError("Chave da NVIDIA invalida ou sem permissao.") from e
-        raise RuntimeError(f"Erro da NVIDIA (HTTP {e.code}): {detail}") from e
+            raise RuntimeError("Chave da OpenAI invalida ou sem permissao.") from e
+        raise RuntimeError(f"Erro da OpenAI (HTTP {e.code}): {detail}") from e
     except urllib.error.URLError as e:
-        raise RuntimeError(f"Sem conexao com a NVIDIA: {e.reason}") from e
+        raise RuntimeError(f"Sem conexao com a OpenAI: {e.reason}") from e
     return body["choices"][0]["message"]["content"]
 
 
@@ -710,7 +736,7 @@ def ai_parse(text):
         {"role": "system", "content": SYSTEM_PROMPT + f"\nHoje e {hoje}."},
         {"role": "user", "content": text.strip()},
     ]
-    raw = call_nvidia(messages)
+    raw = call_openai(messages)
     data = _extract_json(raw)
     tarefas = data.get("tarefas", []) if isinstance(data, dict) else []
     # sanitiza cada tarefa
@@ -764,25 +790,40 @@ def list_projetos():
 
 
 def build_gaps(task, projetos):
-    """O CODIGO decide quais perguntas fazer, olhando os campos vazios.
+    """O CODIGO decide quais perguntas fazer, conforme o TIPO e os campos vazios.
     Cada 'lacuna' vira um modulo de pergunta com o tipo de resposta certo."""
+    tipo = task.get("tipo") or "tarefa"
+    sem_projeto = not (task.get("projeto") or "").strip()
+    sem_link = not task.get("links")
+    proj_q = {"campo": "projeto", "tipo": "opcoes", "opcoes": projetos}
+    link_q = {"campo": "links", "tipo": "link",
+              "pergunta": "Algum link ou pasta? (Canva, Drive, pasta do PC)"}
     gaps = []
-    if not (task.get("projeto") or "").strip():
-        gaps.append({
-            "campo": "projeto", "tipo": "opcoes",
-            "pergunta": "A que projeto isso pertence?",
-            "opcoes": projetos,
-        })
-    if not (task.get("due_date") or "").strip():
-        gaps.append({
-            "campo": "prazo", "tipo": "data",
-            "pergunta": "Tem um prazo?",
-        })
-    if not task.get("links"):
-        gaps.append({
-            "campo": "links", "tipo": "link",
-            "pergunta": "Algum link ou pasta? (Canva, Drive, pasta do PC)",
-        })
+
+    if tipo == "rotina":
+        # Rotina precisa de recorrencia; prazo nao faz sentido (ela se repete).
+        if not (task.get("recorrencia") or "").strip():
+            gaps.append({"campo": "recorrencia", "tipo": "recorrencia",
+                         "pergunta": "Com que frequencia isso se repete?"})
+        if sem_projeto:
+            gaps.append({**proj_q, "pergunta": "De qual projeto e essa rotina?"})
+        if sem_link:
+            gaps.append(link_q)
+    elif tipo == "ideia":
+        # Ideia: o forte e o vinculo (projeto/rotina/tarefa). Sem prazo obrigatorio.
+        gaps.append({"campo": "vinculos", "tipo": "vinculos",
+                     "pergunta": "Quer amarrar essa ideia a um projeto, rotina ou tarefa?"})
+        if sem_projeto:
+            gaps.append({**proj_q, "pergunta": "E de algum projeto?"})
+        if sem_link:
+            gaps.append(link_q)
+    else:  # tarefa
+        if sem_projeto:
+            gaps.append({**proj_q, "pergunta": "A que projeto isso pertence?"})
+        if not (task.get("due_date") or "").strip():
+            gaps.append({"campo": "prazo", "tipo": "data", "pergunta": "Tem um prazo?"})
+        if sem_link:
+            gaps.append(link_q)
     return gaps
 
 
@@ -827,7 +868,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/api/ai/status":
             cfg = load_config()
             return self._json({
-                "configured": api_key_ok(cfg.get("nvidia_api_key", "")),
+                "configured": api_key_ok(cfg.get("openai_api_key", "")),
                 "model": cfg.get("model", DEFAULT_MODEL),
                 "name": cfg.get("name", ""),
             })
@@ -862,7 +903,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/api/ai/config":
             save_config(self._read_json())
             cfg = load_config()
-            return self._json({"configured": api_key_ok(cfg.get("nvidia_api_key", "")),
+            return self._json({"configured": api_key_ok(cfg.get("openai_api_key", "")),
                                "name": cfg.get("name", "")})
         if parsed.path == "/api/ai/parse":
             data = self._read_json()
