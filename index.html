@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bom Dia</title>
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <div class="app">
@@ -91,6 +91,7 @@
         <div class="search-wrap"><span data-icon="search"></span><input type="search" id="search" placeholder="Buscar..."></div>
       </section>
 
+      <div id="projHead" class="proj-head-bar hidden"></div>
       <section id="board" class="board"></section>
       <section id="calendar" class="calendar hidden"></section>
       <div id="empty" class="empty hidden"></div>
@@ -236,7 +237,44 @@
     </div>
   </div>
 
+  <!-- Modal: criar/editar projeto -->
+  <div id="projectModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="projModalTitle">Novo projeto</h2>
+        <button class="btn-icon" data-close="projectModal"><span data-icon="close"></span></button>
+      </div>
+      <form id="projForm">
+        <input type="hidden" id="projId">
+        <div class="field">
+          <label>Nome do projeto</label>
+          <input type="text" id="projName" required placeholder="Ex: GRUPO URBAN">
+        </div>
+        <div class="field">
+          <label>Escopo <span class="opt">(o que é este projeto)</span></label>
+          <textarea id="projScope" rows="3" placeholder="Visão geral, objetivo, contexto..."></textarea>
+        </div>
+        <div class="field">
+          <label>Envolvidos <span class="opt">(pessoas fixas do projeto)</span></label>
+          <input type="text" id="projPeople" placeholder="Ex: Adriano, Rodrigo, equipe de design">
+        </div>
+        <div class="field">
+          <label>Links e pastas do projeto</label>
+          <p class="hint">Links que vivem no projeto (Drive, Canva, pasta do PC) — sempre à mão.</p>
+          <div id="projLinksList"></div>
+          <button type="button" id="btnAddProjLink" class="btn-ghost"><span data-icon="plus"></span> Link ou pasta</button>
+        </div>
+        <div class="modal-foot">
+          <button type="button" id="btnProjDelete" class="btn-danger hidden">Excluir</button>
+          <div class="spacer"></div>
+          <button type="button" class="btn-ghost" data-close="projectModal">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

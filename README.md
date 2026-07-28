@@ -22,6 +22,12 @@ pra fazer.
 - **Assistente que pergunta o que faltou**: no "Organizar meu dia", depois de ler seu texto a IA
   mostra só as perguntas do que ficou em aberto — projeto (sugerindo os existentes), prazo, links —
   antes de criar. Você completa o cadastro numa rodada rápida, estilo assistente de verdade.
+- **Projetos como entidade**: cada projeto tem vida própria — **escopo**, **envolvidos** e **links
+  fixos**. Na aba Projetos você cria projetos (não só tarefas), **minimiza** cada um, e **abre** a
+  central isolada: um espaço só daquele projeto, com tudo à mão e só as demandas dele. Deep-link
+  `?proj=Nome`. Dentro da central, sub-abas **Demandas · Anotações · Links**:
+  - **Anotações** — bloco de notas do projeto, separado por “arquivos” (várias anotações nomeadas).
+  - **Canalizador de links** — reúne todos os links do projeto num lugar só, à mão.
 - **Filtros**: status, prioridade, só atrasadas, e ordenação (prioridade & prazo / prazo / recentes / A–Z).
 - **Roda na bandeja do Windows** — ícone de sol ao lado do relógio, sem janela de terminal.
 

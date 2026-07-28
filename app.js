@@ -8,6 +8,11 @@ let LATE_ONLY = false;
 let SEARCH = "";
 let VIEW = localStorage.getItem("bomdia_view") || "cards";
 let CONFIG = { configured: false, name: "" };
+let PROJECTS = [];       // projetos como entidade (escopo, links, envolvidos)
+let PROJ_OPEN = null;    // nome do projeto aberto na "central" (isolado), ou null
+let PROJ_TAB = "demandas"; // sub-aba da central: demandas | anotacoes | links
+let NOTES = [];          // anotações do projeto aberto
+let NOTE_OPEN = null;    // id da anotação aberta
 
 const el = (id) => document.getElementById(id);
 const AREA_LABEL = { hoje: "Hoje", agenda: "Agenda", projetos: "Projetos", ideias: "Ideias", rotina: "Rotina" };
@@ -47,6 +52,9 @@ const ICONS = {
   close: `<svg viewBox="0 0 24 24" ${S}><path d="M6 6l12 12M18 6L6 18"/></svg>`,
   link: `<svg viewBox="0 0 24 24" ${S}><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>`,
   folder: `<svg viewBox="0 0 24 24" ${S}><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>`,
+  chevron: `<svg viewBox="0 0 24 24" ${S}><path d="M6 9l6 6 6-6"/></svg>`,
+  people: `<svg viewBox="0 0 24 24" ${S}><circle cx="9" cy="8" r="3"/><path d="M15 11a3 3 0 1 0-2-5.2"/><path d="M3.5 20c0-3 2.6-5 5.5-5s5.5 2 5.5 5"/><path d="M16 15.2c2.4.3 4.5 2 4.5 4.8"/></svg>`,
+  back: `<svg viewBox="0 0 24 24" ${S}><path d="M15 18l-6-6 6-6"/></svg>`,
 };
 function ic(name) { return `<span class="i">${ICONS[name] || ""}</span>`; }
 function injectIcons() {
@@ -70,7 +78,11 @@ async function api(method, path, body) {
   const res = await fetch(path, opts);
   return res.json();
 }
-async function loadTasks() { TASKS = await api("GET", "/api/tasks"); render(); }
+async function loadTasks() {
+  TASKS = await api("GET", "/api/tasks");
+  PROJECTS = await api("GET", "/api/projects");
+  render();
+}
 async function loadStatus() { CONFIG = await api("GET", "/api/ai/status"); }
 
 // --- Helpers de dados -----------------------------------------------
@@ -83,6 +95,7 @@ function activeTasks() { return TASKS.filter((t) => t.status !== "concluida"); }
 
 function matchesFilters(t, { ignoreStatus = false, ignoreArea = false } = {}) {
   if (!ignoreArea && !inArea(t, AREA)) return false;
+  if (AREA === "projetos" && PROJ_OPEN && (t.projeto || "").trim() !== PROJ_OPEN) return false;
   if (!ignoreStatus) {
     if (FILTER === "ativas" && t.status === "concluida") return false;
     if (FILTER === "concluida" && t.status !== "concluida") return false;
@@ -127,6 +140,8 @@ function render() {
   if (isHoje) renderDashboard();
   else el("areaTitle").textContent = AREA_LABEL[AREA];
 
+  el("projHead").classList.toggle("hidden", AREA !== "projetos");
+
   // Agenda: calendário mensal no lugar da barra de ferramentas + board
   const isAgenda = AREA === "agenda";
   document.querySelectorAll(".toolbar").forEach((t) => t.classList.toggle("hidden", isAgenda));
@@ -146,7 +161,15 @@ function render() {
   const board = el("board");
   board.innerHTML = "";
 
-  if (AREA === "projetos") { board.className = "board view-projetos"; renderProjetos(board); injectIcons(); return; }
+  if (AREA === "projetos") {
+    el("areaHeader").classList.add("hidden");
+    const central = !!PROJ_OPEN;
+    document.querySelectorAll(".toolbar").forEach((t) => t.classList.toggle("hidden", !central));
+    if (central) { renderProjectCentral(board); }
+    else { board.className = "board view-projetos"; renderProjectsList(board); }
+    injectIcons();
+    return;
+  }
 
   board.className = "board view-" + VIEW;
   if (VIEW === "kanban") { renderKanban(board); injectIcons(); return; }
@@ -295,35 +318,281 @@ function renderKanban(board) {
   }
 }
 
-// --- Visão Projetos (agrupado por projeto) --------------------------
-function renderProjetos(board) {
+// --- Projetos como entidade -----------------------------------------
+function projLinksChips(p) {
+  return (p.links || []).map((l) =>
+    `<button class="link-btn" data-kind="${l.kind}" data-target="${esc(l.target)}" title="${esc(l.target)}">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</button>`
+  ).join("");
+}
+function wireProjLinks(scope) {
+  scope.querySelectorAll(".proj-links-row .link-btn").forEach((b) =>
+    b.addEventListener("click", () => openLink(b.dataset.kind, b.dataset.target)));
+}
+
+// Lista de projetos (com colapsar) ------------------------------------
+function renderProjectsList(board) {
+  el("projHead").innerHTML = `
+    <div class="proj-list-topbar">
+      <h1 class="greeting">Projetos</h1>
+      <button class="btn-soft" id="btnNewProject"><span data-icon="plus"></span> Novo projeto</button>
+    </div>`;
+  el("btnNewProject").addEventListener("click", () => openProjectModal(null));
+  board.innerHTML = "";
+  el("empty").classList.toggle("hidden", PROJECTS.length > 0);
+  el("empty").textContent = "Nenhum projeto ainda. Crie o primeiro em “Novo projeto”.";
+  for (const p of PROJECTS) board.appendChild(projectSection(p));
+}
+function projectSection(p) {
+  const sec = document.createElement("section");
+  sec.className = "proj-card" + (p.collapsed ? " collapsed" : "");
+  sec.dataset.id = p.id;
+  const tasks = sortTasks(TASKS.filter((t) => (t.projeto || "") === p.name && t.status !== "concluida"));
+  const links = projLinksChips(p);
+  sec.innerHTML = `
+    <div class="proj-card-head">
+      <button class="proj-collapse" title="Minimizar">${ICONS.chevron}</button>
+      <div class="proj-card-title">${esc(p.name)}</div>
+      <span class="proj-card-count">${p.task_ativas} ativa${p.task_ativas !== 1 ? "s" : ""}</span>
+      <div class="spacer"></div>
+      <button class="btn-icon proj-edit" title="Editar projeto">${ICONS.gear}</button>
+      <button class="btn-soft proj-open">Abrir</button>
+    </div>
+    <div class="proj-card-body">
+      ${p.scope ? `<p class="proj-scope">${esc(p.scope)}</p>` : ""}
+      ${p.people ? `<div class="proj-people-line">${ICONS.people}<span>${esc(p.people)}</span></div>` : ""}
+      ${links ? `<div class="proj-links-row">${links}</div>` : ""}
+      <div class="proj-tasks-grid"></div>
+    </div>`;
+  const grid = sec.querySelector(".proj-tasks-grid");
+  if (tasks.length) tasks.forEach((t) => grid.appendChild(card(t, { hideProjeto: true })));
+  else grid.innerHTML = `<p class="focus-empty">Sem demandas ativas.</p>`;
+  const open = () => openProject(p.name);
+  sec.querySelector(".proj-open").addEventListener("click", open);
+  sec.querySelector(".proj-card-title").addEventListener("click", open);
+  sec.querySelector(".proj-edit").addEventListener("click", (e) => { e.stopPropagation(); openProjectModal(p); });
+  sec.querySelector(".proj-collapse").addEventListener("click", () => {
+    p.collapsed = p.collapsed ? 0 : 1;
+    sec.classList.toggle("collapsed", !!p.collapsed);
+    api("PUT", `/api/projects/${p.id}`, { collapsed: p.collapsed });
+  });
+  wireProjLinks(sec);
+  return sec;
+}
+
+// Central do projeto (isolada, com sub-abas) --------------------------
+function openProject(name) { PROJ_OPEN = name; PROJ_TAB = "demandas"; NOTE_OPEN = null; render(); }
+
+function renderProjectCentral(board) {
+  const p = PROJECTS.find((x) => x.name === PROJ_OPEN) || { name: PROJ_OPEN, scope: "", people: "", links: [], id: null };
+  const addLabel = PROJ_TAB === "anotacoes" ? "Nova anotação" : PROJ_TAB === "links" ? "Adicionar link" : "Adicionar";
+  el("projHead").innerHTML = `
+    <button class="btn-ghost proj-back" id="btnProjBack">${ICONS.back} Projetos</button>
+    <div class="proj-central">
+      <div class="proj-central-bar">
+        <h1 class="greeting">${esc(p.name)}</h1>
+        <button class="btn-icon" id="btnProjEdit" title="Editar projeto">${ICONS.gear}</button>
+        <div class="spacer"></div>
+        <button class="btn-soft" id="btnProjAdd"><span data-icon="plus"></span> ${addLabel}</button>
+      </div>
+      ${p.scope ? `<p class="proj-central-scope">${esc(p.scope)}</p>` : ""}
+      ${p.people ? `<div class="proj-people-line">${ICONS.people}<span>${esc(p.people)}</span></div>` : ""}
+      <div class="proj-tabs" id="projTabs">
+        <button class="ptab${PROJ_TAB === "demandas" ? " active" : ""}" data-ptab="demandas">Demandas <span class="ptab-count">${p.task_ativas || ""}</span></button>
+        <button class="ptab${PROJ_TAB === "anotacoes" ? " active" : ""}" data-ptab="anotacoes">Anotações</button>
+        <button class="ptab${PROJ_TAB === "links" ? " active" : ""}" data-ptab="links">Links <span class="ptab-count">${(p.links || []).length || ""}</span></button>
+      </div>
+    </div>`;
+  el("btnProjBack").addEventListener("click", () => { PROJ_OPEN = null; render(); });
+  if (p.id != null) el("btnProjEdit").addEventListener("click", () => openProjectModal(p));
+  else el("btnProjEdit").classList.add("hidden");
+  el("projTabs").addEventListener("click", (e) => {
+    const b = e.target.closest(".ptab"); if (!b) return;
+    PROJ_TAB = b.dataset.ptab; render();
+  });
+  el("btnProjAdd").addEventListener("click", () => {
+    if (PROJ_TAB === "anotacoes") newNote(p);
+    else if (PROJ_TAB === "links") { const t = document.querySelector(".linkhub-add .lh-target"); if (t) t.focus(); }
+    else openModal(null, { projeto: p.name });
+  });
+
+  document.querySelectorAll(".toolbar").forEach((t) => t.classList.toggle("hidden", PROJ_TAB !== "demandas"));
+
+  board.innerHTML = "";
+  if (PROJ_TAB === "anotacoes") renderProjectNotes(board, p);
+  else if (PROJ_TAB === "links") renderProjectLinks(board, p);
+  else renderProjectTasks(board);
+}
+
+function renderProjectTasks(board) {
+  board.className = "board view-" + VIEW;
+  if (VIEW === "kanban") { renderKanban(board); return; }
   const list = sortTasks(TASKS.filter((t) => matchesFilters(t)));
   el("empty").classList.toggle("hidden", list.length > 0);
-  el("empty").textContent = "Nenhuma demanda com projeto ainda. Defina um projeto ao criar/editar uma tarefa.";
-  // agrupa por nome de projeto
-  const groups = {};
-  for (const t of list) {
-    const key = (t.projeto || "Sem projeto").trim() || "Sem projeto";
-    (groups[key] = groups[key] || []).push(t);
+  el("empty").textContent = "Nenhuma demanda neste projeto ainda. Use “Adicionar”.";
+  for (const t of list) board.appendChild(VIEW === "lista" ? listRow(t) : card(t, { hideProjeto: true }));
+}
+
+// Anotações (bloco de notas por "arquivos") ---------------------------
+async function renderProjectNotes(board, p) {
+  el("empty").classList.add("hidden");
+  board.className = "board view-notes";
+  board.innerHTML = `<div class="loading"><span class="spinner"></span> Carregando anotações...</div>`;
+  NOTES = (p.id != null) ? await api("GET", `/api/projects/${p.id}/notes`) : [];
+  if (NOTE_OPEN == null && NOTES.length) NOTE_OPEN = NOTES[0].id;
+  board.innerHTML = "";
+  const layout = document.createElement("div");
+  layout.className = "notes-layout";
+
+  const listEl = document.createElement("div");
+  listEl.className = "notes-list";
+  if (!NOTES.length) listEl.innerHTML = `<p class="focus-empty notes-empty">Sem anotações ainda.<br>Crie a primeira em “Nova anotação”.</p>`;
+  NOTES.forEach((n) => {
+    const it = document.createElement("button");
+    it.className = "note-item" + (n.id === NOTE_OPEN ? " active" : "");
+    it.innerHTML = `<span class="note-item-title">${esc(n.title || "Sem título")}</span>`;
+    it.addEventListener("click", () => { NOTE_OPEN = n.id; renderProjectNotes(board, p); });
+    listEl.appendChild(it);
+  });
+  layout.appendChild(listEl);
+
+  const ed = document.createElement("div");
+  ed.className = "note-editor";
+  const note = NOTES.find((n) => n.id === NOTE_OPEN);
+  if (!note) {
+    ed.innerHTML = `<p class="focus-empty note-none">Selecione uma anotação ou crie uma nova.</p>`;
+  } else {
+    ed.innerHTML = `
+      <div class="note-ed-head">
+        <input class="note-title" value="${esc(note.title)}" placeholder="Título da anotação">
+        <button class="btn-icon note-del" title="Excluir anotação">${ICONS.close}</button>
+      </div>
+      <textarea class="note-body" placeholder="Despeje aqui suas ideias, links, rascunhos...">${esc(note.body)}</textarea>
+      <div class="note-saved" id="noteSaved"></div>`;
+    const titleI = ed.querySelector(".note-title");
+    const bodyI = ed.querySelector(".note-body");
+    const saveNote = async () => {
+      await api("PUT", `/api/notes/${note.id}`, { title: titleI.value, body: bodyI.value });
+      note.title = titleI.value; note.body = bodyI.value;
+      const sv = ed.querySelector("#noteSaved"); if (sv) { sv.textContent = "salvo ✓"; setTimeout(() => { if (sv) sv.textContent = ""; }, 1500); }
+      const active = listEl.querySelector(".note-item.active .note-item-title"); if (active) active.textContent = titleI.value || "Sem título";
+    };
+    titleI.addEventListener("blur", saveNote);
+    bodyI.addEventListener("blur", saveNote);
+    ed.querySelector(".note-del").addEventListener("click", async () => {
+      if (!confirm("Excluir esta anotação?")) return;
+      await api("DELETE", `/api/notes/${note.id}`);
+      NOTE_OPEN = null; renderProjectNotes(board, p);
+    });
   }
-  const names = Object.keys(groups).sort((a, b) => a.localeCompare(b, "pt"));
-  for (const name of names) {
-    const sec = document.createElement("section");
-    sec.className = "proj-group";
-    const ativos = groups[name].filter((t) => t.status !== "concluida").length;
-    sec.innerHTML = `<div class="proj-head"><span class="proj-name">${esc(name)}</span><span class="proj-count">${ativos} ativa${ativos !== 1 ? "s" : ""}</span></div>`;
-    const grid = document.createElement("div");
-    grid.className = "proj-grid";
-    groups[name].forEach((t) => grid.appendChild(card(t, { hideProjeto: true })));
-    sec.appendChild(grid);
-    board.appendChild(sec);
-  }
+  layout.appendChild(ed);
+  board.appendChild(layout);
+}
+async function newNote(p) {
+  if (p.id == null) { toast("Salve o projeto antes.", true); return; }
+  const r = await api("POST", `/api/projects/${p.id}/notes`, { title: "Nova anotação", body: "" });
+  NOTE_OPEN = r.id;
+  await renderProjectNotes(el("board"), p);
+  const t = document.querySelector(".note-title"); if (t) { t.focus(); t.select(); }
+}
+
+// Canalizador de links ------------------------------------------------
+function renderProjectLinks(board, p) {
+  el("empty").classList.add("hidden");
+  board.className = "board view-linkhub";
+  board.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "linkhub";
+  const persist = async (links) => {
+    if (p.id == null) return;
+    await api("PUT", `/api/projects/${p.id}`, { links });
+    p.links = links;
+    const ref = PROJECTS.find((x) => x.id === p.id); if (ref) ref.links = links;
+  };
+
+  const form = document.createElement("div");
+  form.className = "linkhub-add";
+  form.innerHTML = `
+    <select class="lh-kind"><option value="web">Web</option><option value="pasta">Pasta</option></select>
+    <input class="lh-label" placeholder="Apelido (opcional)">
+    <input class="lh-target" placeholder="Cole o link (https://...) ou o caminho da pasta">
+    <button class="btn-primary lh-add" type="button">Adicionar</button>`;
+  form.querySelector(".lh-add").addEventListener("click", async () => {
+    const target = form.querySelector(".lh-target").value.trim();
+    if (!target) { toast("Cola um link ou caminho 🙂", true); return; }
+    const nl = { kind: form.querySelector(".lh-kind").value, label: form.querySelector(".lh-label").value.trim(), target };
+    await persist([...(p.links || []), nl]);
+    renderProjectLinks(board, p);
+    const tgt = document.querySelector(".linkhub-add .lh-target"); if (tgt) tgt.focus();
+  });
+  form.querySelector(".lh-target").addEventListener("keydown", (e) => { if (e.key === "Enter") form.querySelector(".lh-add").click(); });
+  wrap.appendChild(form);
+
+  const listEl = document.createElement("div");
+  listEl.className = "linkhub-list";
+  if (!(p.links || []).length) listEl.innerHTML = `<p class="focus-empty linkhub-empty">Nenhum link ainda. Canalize aqui todos os links deste projeto.</p>`;
+  (p.links || []).forEach((l, i) => {
+    const row = document.createElement("div");
+    row.className = "linkhub-row";
+    row.innerHTML = `
+      <button class="link-btn lh-open" title="${esc(l.target)}">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</button>
+      <button class="btn-icon lh-del" title="Remover">${ICONS.close}</button>`;
+    row.querySelector(".lh-open").addEventListener("click", () => openLink(l.kind, l.target));
+    row.querySelector(".lh-del").addEventListener("click", async () => {
+      await persist((p.links || []).filter((_, j) => j !== i));
+      renderProjectLinks(board, p);
+    });
+    listEl.appendChild(row);
+  });
+  wrap.appendChild(listEl);
+  board.appendChild(wrap);
+}
+
+// Modal de projeto ----------------------------------------------------
+function openProjectModal(p) {
+  el("projId").value = p ? p.id : "";
+  el("projName").value = p ? p.name : "";
+  el("projScope").value = p ? (p.scope || "") : "";
+  el("projPeople").value = p ? (p.people || "") : "";
+  el("projLinksList").innerHTML = "";
+  ((p && p.links) || []).forEach((l) => el("projLinksList").appendChild(blankLinkRow(l.kind, l.label, l.target)));
+  el("projModalTitle").textContent = p ? "Editar projeto" : "Novo projeto";
+  el("btnProjDelete").classList.toggle("hidden", !p);
+  openOverlay("projectModal");
+  el("projName").focus();
+}
+async function saveProject(e) {
+  if (e) e.preventDefault();
+  const name = el("projName").value.trim();
+  if (!name) { toast("Dá um nome pro projeto 🙂", true); return; }
+  const payload = {
+    name, scope: el("projScope").value.trim(), people: el("projPeople").value.trim(),
+    links: [...el("projLinksList").querySelectorAll(".link-row")].map((r) => ({
+      kind: r.querySelector("select").value,
+      label: r.querySelector(".l-label").value,
+      target: r.querySelector(".l-target").value,
+    })).filter((l) => l.target.trim()),
+  };
+  const id = el("projId").value;
+  const r = id ? await api("PUT", `/api/projects/${id}`, payload) : await api("POST", "/api/projects", payload);
+  if (r && r.error) { toast(r.error, true); return; }
+  PROJ_OPEN = name; PROJ_TAB = "demandas"; // abre/permanece no projeto salvo
+  closeOverlay("projectModal"); toast("Projeto salvo ✓"); loadTasks();
+}
+async function deleteProjectFromModal() {
+  const id = el("projId").value; if (!id) return;
+  if (!confirm("Excluir este projeto? As tarefas dele ficam sem projeto (não são apagadas).")) return;
+  await api("DELETE", `/api/projects/${id}`);
+  PROJ_OPEN = null;
+  closeOverlay("projectModal"); toast("Projeto excluído"); loadTasks();
 }
 
 function refreshProjetosDatalist() {
   const dl = el("projetosList");
   if (!dl) return;
-  const nomes = [...new Set(TASKS.map((t) => (t.projeto || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt"));
+  const nomes = [...new Set([
+    ...PROJECTS.map((p) => p.name),
+    ...TASKS.map((t) => (t.projeto || "").trim()).filter(Boolean),
+  ])].sort((a, b) => a.localeCompare(b, "pt"));
   dl.innerHTML = nomes.map((n) => `<option value="${esc(n)}">`).join("");
 }
 
@@ -774,7 +1043,7 @@ function tomorrow() { const d = new Date(); d.setDate(d.getDate() + 1); return d
 // --- Eventos --------------------------------------------------------
 el("nav").addEventListener("click", (e) => {
   const b = e.target.closest(".nav-item[data-area]"); if (!b) return;
-  AREA = b.dataset.area; render();
+  AREA = b.dataset.area; PROJ_OPEN = null; render();
 });
 el("btnAssistant").addEventListener("click", openAssistant);
 el("btnNew").addEventListener("click", () => openModal(null));
@@ -796,6 +1065,9 @@ el("btnDelete").addEventListener("click", deleteTask);
 el("btnAddLink").addEventListener("click", () => el("linksList").appendChild(blankLinkRow()));
 el("btnAddSub").addEventListener("click", () => el("subtasksList").appendChild(blankSubRow()));
 enableSubReorder(el("subtasksList"));
+el("projForm").addEventListener("submit", saveProject);
+el("btnProjDelete").addEventListener("click", deleteProjectFromModal);
+el("btnAddProjLink").addEventListener("click", () => el("projLinksList").appendChild(blankLinkRow()));
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => closeOverlay(b.dataset.close)));
 document.querySelectorAll(".modal-overlay").forEach((ov) => ov.addEventListener("click", (e) => { if (e.target === ov) closeOverlay(ov.id); }));
 el("search").addEventListener("input", (e) => { SEARCH = e.target.value; render(); });
@@ -820,5 +1092,9 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.q
 // --- Início ---------------------------------------------------------
 const _a = new URLSearchParams(location.search).get("area");
 if (_a && _a in AREA_LABEL) AREA = _a;
+const _p = new URLSearchParams(location.search).get("proj");
+if (_p) { AREA = "projetos"; PROJ_OPEN = _p; PROJ_TAB = "demandas"; }
+const _pt = new URLSearchParams(location.search).get("ptab");
+if (_pt && ["demandas", "anotacoes", "links"].includes(_pt)) PROJ_TAB = _pt;
 injectIcons();
 (async () => { await loadStatus(); await loadTasks(); })();

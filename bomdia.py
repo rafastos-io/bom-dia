@@ -66,6 +66,34 @@ def init_db():
             position INTEGER DEFAULT 0,
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS projects (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL UNIQUE,
+            scope      TEXT DEFAULT '',
+            people     TEXT DEFAULT '',
+            status     TEXT DEFAULT 'ativo',
+            collapsed  INTEGER DEFAULT 0,
+            position   INTEGER DEFAULT 0,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS project_links (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            kind       TEXT NOT NULL,
+            label      TEXT,
+            target     TEXT NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS project_notes (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            title      TEXT DEFAULT '',
+            body       TEXT DEFAULT '',
+            position   INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
         """
     )
     # Migracoes incrementais (idempotentes)
@@ -83,6 +111,14 @@ def init_db():
     if "projeto" not in cols:
         conn.execute("ALTER TABLE tasks ADD COLUMN projeto TEXT DEFAULT ''")
         conn.execute("UPDATE tasks SET projeto = '' WHERE projeto IS NULL")
+    # Projetos viram entidade: semeia a tabela projects a partir dos nomes ja usados
+    existentes = {r["name"] for r in conn.execute("SELECT name FROM projects")}
+    for r in conn.execute("SELECT DISTINCT projeto FROM tasks WHERE TRIM(COALESCE(projeto,'')) <> ''"):
+        nome = (r["projeto"] or "").strip()
+        if nome and nome not in existentes:
+            conn.execute("INSERT INTO projects (name, created_at) VALUES (?,?)",
+                         (nome, datetime.now().isoformat(timespec="seconds")))
+            existentes.add(nome)
     conn.commit()
     conn.close()
 
@@ -202,6 +238,7 @@ def create_task(data):
             (task_id, link.get("kind", "web"), (link.get("label") or "").strip(), target),
         )
     _replace_subtasks(conn, task_id, data.get("subtasks", []))
+    _ensure_project(conn, projeto)
     conn.commit()
     conn.close()
     return task_id
@@ -233,6 +270,8 @@ def update_task(task_id, data):
     # Se o payload trouxer subtasks, substitui todas.
     if "subtasks" in data:
         _replace_subtasks(conn, task_id, data["subtasks"])
+    if "projeto" in data:
+        _ensure_project(conn, data["projeto"])
     conn.commit()
     conn.close()
 
@@ -254,6 +293,166 @@ def delete_task(task_id):
     conn.execute("DELETE FROM links WHERE task_id = ?", (task_id,))
     conn.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,))
     conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close()
+
+
+# ----------------------------------------------------------------------------
+# Projetos como entidade (escopo, links fixos, envolvidos)
+# ----------------------------------------------------------------------------
+def _proj_links(conn, pid):
+    return [dict(r) for r in conn.execute(
+        "SELECT id, kind, label, target FROM project_links WHERE project_id = ? ORDER BY id", (pid,))]
+
+
+def _ensure_project(conn, name):
+    """Garante que exista um projeto-entidade com esse nome (cria se preciso)."""
+    name = (name or "").strip()
+    if not name:
+        return
+    row = conn.execute("SELECT 1 FROM projects WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
+    if not row:
+        conn.execute("INSERT INTO projects (name, created_at) VALUES (?,?)",
+                     (name, datetime.now().isoformat(timespec="seconds")))
+
+
+def _replace_project_links(conn, pid, links):
+    conn.execute("DELETE FROM project_links WHERE project_id = ?", (pid,))
+    for l in links or []:
+        target = (l.get("target") or "").strip()
+        if not target:
+            continue
+        conn.execute(
+            "INSERT INTO project_links (project_id, kind, label, target) VALUES (?,?,?,?)",
+            (pid, l.get("kind", "web"), (l.get("label") or "").strip(), target))
+
+
+def list_projects():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM projects ORDER BY position, LOWER(name)").fetchall()
+    result = []
+    for p in rows:
+        d = dict(p)
+        d["links"] = _proj_links(conn, p["id"])
+        cnt = conn.execute(
+            "SELECT COUNT(*) AS total, "
+            "SUM(CASE WHEN status = 'concluida' THEN 0 ELSE 1 END) AS ativas "
+            "FROM tasks WHERE projeto = ?", (p["name"],)).fetchone()
+        d["task_total"] = cnt["total"] or 0
+        d["task_ativas"] = cnt["ativas"] or 0
+        result.append(d)
+    conn.close()
+    return result
+
+
+def create_project(data):
+    conn = get_db()
+    name = (data.get("name") or "").strip()
+    if not name:
+        conn.close()
+        raise ValueError("Nome do projeto vazio")
+    row = conn.execute("SELECT id FROM projects WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
+    if row:
+        pid = row["id"]
+        conn.execute("UPDATE projects SET scope = ?, people = ? WHERE id = ?",
+                     ((data.get("scope") or "").strip(), (data.get("people") or "").strip(), pid))
+    else:
+        cur = conn.execute(
+            "INSERT INTO projects (name, scope, people, created_at) VALUES (?,?,?,?)",
+            (name, (data.get("scope") or "").strip(), (data.get("people") or "").strip(),
+             datetime.now().isoformat(timespec="seconds")))
+        pid = cur.lastrowid
+    _replace_project_links(conn, pid, data.get("links", []))
+    conn.commit()
+    conn.close()
+    return pid
+
+
+def update_project(pid, data):
+    conn = get_db()
+    old = conn.execute("SELECT name FROM projects WHERE id = ?", (pid,)).fetchone()
+    if not old:
+        conn.close()
+        return
+    sets, vals = [], []
+    for f in ("name", "scope", "people", "status"):
+        if f in data:
+            sets.append(f"{f} = ?")
+            vals.append((data[f] or "").strip())
+    if "collapsed" in data:
+        sets.append("collapsed = ?")
+        vals.append(1 if data["collapsed"] else 0)
+    if sets:
+        vals.append(pid)
+        conn.execute(f"UPDATE projects SET {', '.join(sets)} WHERE id = ?", vals)
+    # Renomeou? propaga o novo nome pras tarefas (projeto e chave por nome)
+    new_name = (data.get("name") or "").strip()
+    if new_name and new_name != old["name"]:
+        conn.execute("UPDATE tasks SET projeto = ? WHERE projeto = ?", (new_name, old["name"]))
+    if "links" in data:
+        _replace_project_links(conn, pid, data["links"])
+    conn.commit()
+    conn.close()
+
+
+def delete_project(pid):
+    conn = get_db()
+    p = conn.execute("SELECT name FROM projects WHERE id = ?", (pid,)).fetchone()
+    if p:
+        conn.execute("UPDATE tasks SET projeto = '' WHERE projeto = ?", (p["name"],))
+    conn.execute("DELETE FROM project_links WHERE project_id = ?", (pid,))
+    conn.execute("DELETE FROM project_notes WHERE project_id = ?", (pid,))
+    conn.execute("DELETE FROM projects WHERE id = ?", (pid,))
+    conn.commit()
+    conn.close()
+
+
+# ----------------------------------------------------------------------------
+# Anotacoes do projeto (bloco de notas, separado por "arquivos")
+# ----------------------------------------------------------------------------
+def list_notes(project_id):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, project_id, title, body, position, updated_at "
+        "FROM project_notes WHERE project_id = ? ORDER BY position, id", (project_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def create_note(project_id, data):
+    conn = get_db()
+    now = datetime.now().isoformat(timespec="seconds")
+    cur = conn.execute(
+        "INSERT INTO project_notes (project_id, title, body, created_at, updated_at) VALUES (?,?,?,?,?)",
+        (project_id, (data.get("title") or "Nova anotação").strip() or "Nova anotação",
+         data.get("body") or "", now, now))
+    nid = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return nid
+
+
+def update_note(note_id, data):
+    conn = get_db()
+    sets, vals = [], []
+    if "title" in data:
+        sets.append("title = ?")
+        vals.append((data["title"] or "").strip() or "Sem título")
+    if "body" in data:
+        sets.append("body = ?")
+        vals.append(data["body"] or "")
+    if sets:
+        sets.append("updated_at = ?")
+        vals.append(datetime.now().isoformat(timespec="seconds"))
+        vals.append(note_id)
+        conn.execute(f"UPDATE project_notes SET {', '.join(sets)} WHERE id = ?", vals)
+    conn.commit()
+    conn.close()
+
+
+def delete_note(note_id):
+    conn = get_db()
+    conn.execute("DELETE FROM project_notes WHERE id = ?", (note_id,))
     conn.commit()
     conn.close()
 
@@ -481,6 +680,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/tasks":
             return self._json(list_tasks())
+        if parsed.path == "/api/projects":
+            return self._json(list_projects())
+        gparts = parsed.path.strip("/").split("/")
+        if len(gparts) == 4 and gparts[0] == "api" and gparts[1] == "projects" and gparts[3] == "notes":
+            return self._json(list_notes(int(gparts[2])))
         if parsed.path == "/api/ai/status":
             cfg = load_config()
             return self._json({
@@ -498,6 +702,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             data = self._read_json()
             tid = create_task(data)
             return self._json({"id": tid}, 201)
+        if parsed.path == "/api/projects":
+            try:
+                pid = create_project(self._read_json())
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json({"id": pid}, 201)
+        pparts = parsed.path.strip("/").split("/")
+        if len(pparts) == 4 and pparts[0] == "api" and pparts[1] == "projects" and pparts[3] == "notes":
+            nid = create_note(int(pparts[2]), self._read_json())
+            return self._json({"id": nid}, 201)
         if parsed.path == "/api/open":
             data = self._read_json()
             ok, msg = open_folder(data.get("path", ""))
@@ -531,6 +745,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "subtasks":
             update_subtask(int(parts[2]), self._read_json())
             return self._json({"ok": True})
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "projects":
+            update_project(int(parts[2]), self._read_json())
+            return self._json({"ok": True})
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "notes":
+            update_note(int(parts[2]), self._read_json())
+            return self._json({"ok": True})
         return self._json({"error": "rota nao encontrada"}, 404)
 
     def do_DELETE(self):
@@ -538,6 +758,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         parts = parsed.path.strip("/").split("/")
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "tasks":
             delete_task(int(parts[2]))
+            return self._json({"ok": True})
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "projects":
+            delete_project(int(parts[2]))
+            return self._json({"ok": True})
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "notes":
+            delete_note(int(parts[2]))
             return self._json({"ok": True})
         return self._json({"error": "rota nao encontrada"}, 404)
 

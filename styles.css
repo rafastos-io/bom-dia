@@ -267,13 +267,77 @@ svg { display: block; }
 .kcol-body .card:active { cursor: grabbing; }
 @media (max-width: 760px) { .board.view-kanban { grid-template-columns: 1fr; } }
 
-/* Board: Projetos (agrupado) ----------------------------------------- */
-.board.view-projetos { display: flex; flex-direction: column; gap: 26px; }
-.proj-group { animation: rise .35s var(--ease) both; }
-.proj-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.proj-name { font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
-.proj-count { font-size: 12.5px; color: var(--muted); }
-.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+/* Projetos como entidade ---------------------------------------------- */
+.proj-head-bar { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; animation: rise .35s var(--ease); }
+.proj-list-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+.board.view-projetos { display: flex; flex-direction: column; gap: 14px; }
+.proj-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; animation: rise .3s var(--ease) both; }
+.proj-card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; }
+.proj-collapse { background: transparent; border: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 2px; border-radius: 8px; transition: transform .18s var(--ease), color .14s, background .14s; }
+.proj-collapse:hover { background: var(--surface-2); color: var(--ink); }
+.proj-collapse svg { width: 20px; height: 20px; }
+.proj-card.collapsed .proj-collapse { transform: rotate(-90deg); }
+.proj-card.collapsed .proj-card-body { display: none; }
+.proj-card-title { font-size: 17px; font-weight: 700; letter-spacing: -.3px; cursor: pointer; }
+.proj-card-title:hover { color: var(--blue); }
+.proj-card-count { font-size: 12.5px; color: var(--blue); background: var(--blue-soft); padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+.proj-card-head .proj-open { padding: 8px 16px; font-size: 13.5px; }
+.proj-card-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.proj-scope { font-size: 14px; color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; }
+.proj-people-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.proj-people-line svg { width: 17px; height: 17px; flex: none; }
+.proj-links-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.proj-links-row .link-btn { width: auto; max-width: 260px; }
+.proj-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+
+/* Central do projeto (isolada) */
+.proj-back { align-self: flex-start; padding: 8px 14px; }
+.proj-central { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.proj-central-bar { display: flex; align-items: center; gap: 10px; }
+.proj-central-bar .greeting { font-size: 26px; }
+.proj-central-scope { font-size: 14.5px; color: var(--ink-soft); line-height: 1.55; white-space: pre-wrap; }
+
+/* Sub-abas da central */
+.proj-tabs { display: flex; gap: 4px; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 12px; flex-wrap: wrap; }
+.ptab { background: transparent; border: none; color: var(--muted); padding: 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; transition: all .14s var(--ease); }
+.ptab:hover { background: var(--surface-2); color: var(--ink); }
+.ptab.active { background: var(--blue-soft); color: var(--blue); }
+.ptab-count { font-size: 11.5px; background: var(--surface-2); color: var(--muted); padding: 0 7px; border-radius: 999px; min-width: 18px; text-align: center; }
+.ptab.active .ptab-count { background: #fff; color: var(--blue); }
+
+/* Anotações */
+.board.view-notes, .board.view-linkhub { display: block; }
+.notes-layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+.notes-list { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 8px; box-shadow: var(--shadow-sm); }
+.note-item { text-align: left; background: transparent; border: none; padding: 9px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; color: var(--ink-soft); }
+.note-item:hover { background: var(--surface-2); }
+.note-item.active { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+.note-item-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-empty { padding: 14px; line-height: 1.5; }
+.note-editor { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm); }
+.note-none { padding: 30px 16px; text-align: center; }
+.note-ed-head { display: flex; gap: 8px; align-items: center; }
+.note-title { flex: 1; font-size: 17px; font-weight: 700; border: none; background: transparent; color: var(--ink); font-family: inherit; padding: 4px 0; letter-spacing: -.2px; }
+.note-title:focus { outline: none; }
+.note-body { min-height: 360px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); padding: 13px 15px; font-family: inherit; font-size: 14.5px; line-height: 1.6; resize: vertical; color: var(--ink); }
+.note-body:focus { outline: none; border-color: var(--blue); background: var(--surface); }
+.note-saved { font-size: 12px; color: var(--baixa); height: 14px; }
+
+/* Canalizador de links */
+.linkhub { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.linkhub-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow-sm); }
+.linkhub-add select, .linkhub-add input { padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); font-family: inherit; font-size: 13.5px; color: var(--ink); }
+.linkhub-add .lh-kind { flex: 0 0 92px; }
+.linkhub-add .lh-label { flex: 0 0 150px; }
+.linkhub-add .lh-target { flex: 1; min-width: 180px; }
+.linkhub-add select:focus, .linkhub-add input:focus { outline: none; border-color: var(--blue); background: var(--surface); }
+.linkhub-add .lh-add { padding: 10px 18px; }
+.linkhub-list { display: flex; flex-direction: column; gap: 8px; }
+.linkhub-row { display: flex; align-items: center; gap: 8px; }
+.linkhub-row .lh-open { flex: 1; width: auto; }
+.linkhub-empty { padding: 16px; }
+@media (max-width: 720px) { .notes-layout { grid-template-columns: 1fr; } }
 
 /* Board: Agenda (calendário) ----------------------------------------- */
 .calendar { animation: rise .4s var(--ease); }
