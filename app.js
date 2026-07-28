@@ -60,6 +60,7 @@ const ICONS = {
   people: `<svg viewBox="0 0 24 24" ${S}><circle cx="9" cy="8" r="3"/><path d="M15 11a3 3 0 1 0-2-5.2"/><path d="M3.5 20c0-3 2.6-5 5.5-5s5.5 2 5.5 5"/><path d="M16 15.2c2.4.3 4.5 2 4.5 4.8"/></svg>`,
   back: `<svg viewBox="0 0 24 24" ${S}><path d="M15 18l-6-6 6-6"/></svg>`,
   check: `<svg viewBox="0 0 24 24" ${S}><path d="M20 6 9 17l-5-5"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" ${S}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>`,
 };
 function ic(name) { return `<span class="i">${ICONS[name] || ""}</span>`; }
 function injectIcons() {
@@ -476,6 +477,7 @@ function projectSection(p) {
       <span class="proj-card-count">${p.task_ativas} ativa${p.task_ativas !== 1 ? "s" : ""}</span>
       <div class="spacer"></div>
       <button class="btn-icon proj-edit" title="Editar projeto">${ICONS.gear}</button>
+      <button class="btn-icon proj-del" title="Excluir projeto">${ICONS.trash}</button>
       <button class="btn-soft proj-open">Abrir</button>
     </div>
     <div class="proj-card-body">
@@ -491,6 +493,7 @@ function projectSection(p) {
   sec.querySelector(".proj-open").addEventListener("click", open);
   sec.querySelector(".proj-card-title").addEventListener("click", open);
   sec.querySelector(".proj-edit").addEventListener("click", (e) => { e.stopPropagation(); openProjectModal(p); });
+  sec.querySelector(".proj-del").addEventListener("click", (e) => { e.stopPropagation(); confirmDeleteProject(p); });
   sec.querySelector(".proj-collapse").addEventListener("click", () => {
     p.collapsed = p.collapsed ? 0 : 1;
     sec.classList.toggle("collapsed", !!p.collapsed);
@@ -512,6 +515,7 @@ function renderProjectCentral(board) {
       <div class="proj-central-bar">
         <h1 class="greeting">${esc(p.name)}</h1>
         <button class="btn-icon" id="btnProjEdit" title="Editar projeto">${ICONS.gear}</button>
+        <button class="btn-icon" id="btnProjDel" title="Excluir projeto">${ICONS.trash}</button>
         <div class="spacer"></div>
         <button class="btn-soft" id="btnProjAdd"><span data-icon="plus"></span> ${addLabel}</button>
       </div>
@@ -524,8 +528,13 @@ function renderProjectCentral(board) {
       </div>
     </div>`;
   el("btnProjBack").addEventListener("click", () => { PROJ_OPEN = null; render(); });
-  if (p.id != null) el("btnProjEdit").addEventListener("click", () => openProjectModal(p));
-  else el("btnProjEdit").classList.add("hidden");
+  if (p.id != null) {
+    el("btnProjEdit").addEventListener("click", () => openProjectModal(p));
+    el("btnProjDel").addEventListener("click", () => confirmDeleteProject(p));
+  } else {
+    el("btnProjEdit").classList.add("hidden");
+    el("btnProjDel").classList.add("hidden");
+  }
   el("projTabs").addEventListener("click", (e) => {
     const b = e.target.closest(".ptab"); if (!b) return;
     PROJ_TAB = b.dataset.ptab; render();
@@ -705,12 +714,17 @@ async function saveProject(e) {
   PROJ_OPEN = name; PROJ_TAB = "demandas"; // abre/permanece no projeto salvo
   closeOverlay("projectModal"); toast("Projeto salvo ✓"); loadTasks();
 }
-async function deleteProjectFromModal() {
-  const id = el("projId").value; if (!id) return;
-  if (!confirm("Excluir este projeto? As tarefas dele ficam sem projeto (não são apagadas).")) return;
-  await api("DELETE", `/api/projects/${id}`);
-  PROJ_OPEN = null;
+async function confirmDeleteProject(p) {
+  if (!p || p.id == null) return;
+  if (!confirm(`Excluir o projeto "${p.name}"?\n\nAs tarefas dele NÃO são apagadas — só ficam sem projeto. As anotações e os links do projeto são removidos.`)) return;
+  await api("DELETE", `/api/projects/${p.id}`);
+  if (PROJ_OPEN === p.name) PROJ_OPEN = null;
   closeOverlay("projectModal"); toast("Projeto excluído"); loadTasks();
+}
+function deleteProjectFromModal() {
+  const id = el("projId").value; if (!id) return;
+  const p = PROJECTS.find((x) => String(x.id) === String(id)) || { id: Number(id), name: el("projName").value.trim() };
+  confirmDeleteProject(p);
 }
 
 function refreshProjetosDatalist() {
@@ -1061,7 +1075,33 @@ function questionModule(p) {
       </div>
     </div>`;
   }
+  if (p.campo === "recorrencia") {
+    return `<div class="qmod" data-campo="recorrencia">
+      <div class="qmod-q">${esc(p.pergunta)}</div>
+      <div class="qchips">
+        <button type="button" class="qchip" data-val="diaria">Diária</button>
+        <button type="button" class="qchip" data-val="semanal">Semanal</button>
+        <button type="button" class="qchip" data-val="mensal">Mensal</button>
+        <button type="button" class="qchip qchip-skip" data-val="">Sem recorrência</button>
+      </div>
+    </div>`;
+  }
+  if (p.campo === "vinculos") {
+    return `<div class="qmod qmod-vinculos" data-campo="vinculos">
+      <div class="qmod-q">${esc(p.pergunta)}</div>
+      <div class="qv-chips idea-chips"></div>
+      <div class="idea-add"><select class="qv-pick"></select></div>
+    </div>`;
+  }
   return "";
+}
+function ideaLinkOptions(chosen) {
+  chosen = chosen || new Set();
+  const grp = (label, items) => items.length ? `<optgroup label="${label}">${items.join("")}</optgroup>` : "";
+  const projs = PROJECTS.filter((p) => !chosen.has(`projeto:${p.id}`)).map((p) => `<option value="projeto:${p.id}">${esc(p.name)}</option>`);
+  const rots = TASKS.filter((t) => t.tipo === "rotina" && !chosen.has(`rotina:${t.id}`)).map((t) => `<option value="rotina:${t.id}">${esc(t.title)}</option>`);
+  const tars = TASKS.filter((t) => (t.tipo || "tarefa") === "tarefa" && !chosen.has(`tarefa:${t.id}`)).map((t) => `<option value="tarefa:${t.id}">${esc(t.title)}</option>`);
+  return `<option value="" disabled selected>Escolher para vincular…</option>` + grp("Projetos", projs) + grp("Rotinas", rots) + grp("Tarefas", tars);
 }
 function questionCard(t, i) {
   const mods = (t.perguntas || []).map((p) => questionModule(p)).join("");
@@ -1097,6 +1137,32 @@ function renderQuestions() {
   }));
   q.querySelectorAll(".qmod-date").forEach((di) => di.addEventListener("input", () =>
     di.closest(".qmod").querySelectorAll(".qchip").forEach((c) => c.classList.remove("sel"))));
+  // Vínculos: mesmo padrão do modal (seleciona no dropdown -> vira chip)
+  q.querySelectorAll(".qmod-vinculos").forEach((mod) => {
+    const t = PENDING[Number(mod.closest(".qcard").dataset.idx)];
+    t.idea_links = t.idea_links || [];
+    const chipsEl = mod.querySelector(".qv-chips");
+    const pick = mod.querySelector(".qv-pick");
+    const fillPick = () => { pick.innerHTML = ideaLinkOptions(new Set(t.idea_links.map((l) => `${l.target_type}:${l.target_id}`))); };
+    const renderChips = () => {
+      chipsEl.innerHTML = t.idea_links.length ? "" : `<span class="hint">Nenhum vínculo (opcional).</span>`;
+      t.idea_links.forEach((l, i) => {
+        const chip = document.createElement("span");
+        chip.className = "idea-chip " + ideaChipKind(l);
+        chip.innerHTML = `${ic(ideaLinkIcon(l))} ${esc(l.label)}<button type="button" class="rm">✕</button>`;
+        chip.querySelector(".rm").addEventListener("click", () => { t.idea_links.splice(i, 1); renderChips(); fillPick(); });
+        chipsEl.appendChild(chip);
+      });
+      injectIcons();
+    };
+    pick.addEventListener("change", () => {
+      const v = pick.value; if (!v.includes(":")) return;
+      const [tt, id] = v.split(":");
+      t.idea_links.push({ target_type: tt, target_id: Number(id), label: pick.selectedOptions[0].textContent });
+      renderChips(); fillPick();
+    });
+    renderChips(); fillPick();
+  });
   el("btnQBack").addEventListener("click", () => {
     q.classList.add("hidden"); q.innerHTML = "";
     el("aiChat").classList.remove("hidden");
@@ -1121,7 +1187,11 @@ function applyAnswersAndReview() {
           target: r.querySelector(".l-target").value,
         })).filter((l) => l.target.trim());
         if (links.length) t.links = links;
+      } else if (campo === "recorrencia") {
+        const sel = mod.querySelector(".qchip.sel");
+        if (sel) t.recorrencia = sel.dataset.val;
       }
+      // vínculos já foram aplicados ao vivo em t.idea_links
     });
   });
   el("aiQuestions").classList.add("hidden");
@@ -1156,6 +1226,7 @@ function reviewCard(t) {
     ${t.motivo ? `<div class="rcard-motivo">${esc(t.motivo)}</div>` : ""}
     ${(t.subtasks && t.subtasks.length) ? `<ul class="rcard-subs">${t.subtasks.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
     ${(t.links && t.links.length) ? `<div class="rcard-links">${t.links.map((l) => `<span class="rlink">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</span>`).join("")}</div>` : ""}
+    ${(t.idea_links && t.idea_links.length) ? `<div class="rcard-links">${t.idea_links.map((l) => `<span class="rlink">${ic(ideaLinkIcon(l))} ${esc(l.label)}</span>`).join("")}</div>` : ""}
     <div class="rcard-controls">
       <select class="r-tipo">${opt("tarefa", t.tipo, "Tarefa")}${opt("ideia", t.tipo, "Ideia")}${opt("rotina", t.tipo, "Rotina")}</select>
       <select class="r-recor${t.tipo === "rotina" ? "" : " hidden"}" title="Recorrência da rotina">
@@ -1189,6 +1260,7 @@ async function createAllFromReview() {
       send_to: t.send_to || "",
       subtasks: t.subtasks || [],
       links: t.links || [],
+      idea_links: tipo === "ideia" ? (t.idea_links || []).map((l) => ({ target_type: l.target_type, target_id: l.target_id })) : [],
     });
   }
   closeOverlay("assistantModal");
@@ -1199,7 +1271,7 @@ async function createAllFromReview() {
 async function saveKey(inputId, extra = {}) {
   const key = el(inputId).value.trim();
   const body = { ...extra };
-  if (key) body.nvidia_api_key = key;
+  if (key) body.openai_api_key = key;
   const r = await api("POST", "/api/ai/config", body);
   CONFIG.configured = r.configured; CONFIG.name = r.name;
   return r;
@@ -1243,7 +1315,7 @@ el("btnOrganize").addEventListener("click", organize);
 el("btnSaveKey").addEventListener("click", async () => {
   const r = await saveKey("cfgKey");
   if (r.configured) { el("aiSetup").classList.add("hidden"); el("aiChat").classList.remove("hidden"); el("aiText").focus(); toast("Chave salva ✓"); }
-  else toast("Chave inválida (deve começar com nvapi-).", true);
+  else toast("Chave inválida (deve começar com sk-).", true);
 });
 el("btnSaveConfig").addEventListener("click", async () => {
   await saveKey("cfgKey2", { name: el("cfgName").value.trim() });

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bom Dia</title>
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
   <div class="app">
@@ -35,7 +35,7 @@
 
         <div class="hero-actions">
           <button id="btnAssistant" class="btn-hero">
-            <span data-icon="sparkle"></span> Organizar meu dia
+            <span data-icon="sparkle"></span> Fala comigo, Poohzera
           </button>
           <button id="btnNew" class="btn-soft"><span data-icon="plus"></span> Adicionar tarefa</button>
           <button id="btnRemind" class="btn-soft"><span data-icon="clock"></span> Me lembrar depois</button>
@@ -102,25 +102,28 @@
   <div id="assistantModal" class="modal-overlay hidden">
     <div class="modal modal-assistant">
       <div class="modal-head">
-        <h2><span data-icon="sparkle"></span> Organizar meu dia</h2>
+        <h2><img class="poohzera-avatar" id="poohAvatar" src="assets/puzeira.png" alt="Poohzera"> Poohzera</h2>
         <button class="btn-icon" data-close="assistantModal"><span data-icon="close"></span></button>
       </div>
 
       <!-- Passo: configurar chave (se necessário) -->
       <div id="aiSetup" class="ai-setup hidden">
-        <p class="hint">Pra eu te ajudar, cole sua chave da NVIDIA (gratuita). Ela fica só aqui no seu computador.</p>
+        <p class="hint">Pra eu te ajudar, cole sua chave da OpenAI. Ela fica só aqui no seu computador.</p>
         <ol class="steps">
-          <li>Acesse <b>build.nvidia.com</b> e entre.</li>
-          <li>Escolha um modelo → <b>Get API Key</b>.</li>
-          <li>Cole a chave <code>nvapi-...</code> abaixo.</li>
+          <li>Acesse <b>platform.openai.com</b> e entre.</li>
+          <li>Em <b>API keys</b> → <b>Create new secret key</b>.</li>
+          <li>Cole a chave <code>sk-...</code> abaixo.</li>
         </ol>
-        <input type="password" id="cfgKey" placeholder="nvapi-...">
+        <input type="password" id="cfgKey" placeholder="sk-...">
         <button id="btnSaveKey" class="btn-primary">Salvar chave</button>
       </div>
 
       <!-- Passo: conversa -->
       <div id="aiChat">
-        <p class="assistant-lead">Me conta o que chegou. Escreve solto — eu organizo em tarefas pra você.</p>
+        <div class="pooh-hi">
+          <img class="poohzera-avatar big" src="assets/puzeira.png" alt="Poohzera">
+          <p class="assistant-lead">Manda o que chegou — recado, ideia, tarefa solta, uma rotina. Eu monto tudo e só te pergunto o que faltar.</p>
+        </div>
         <textarea id="aiText" rows="5" placeholder="Ex: a Claudia pediu uns vídeos pra campanha do dia das mães, é meio urgente, entrego até sexta que vem..."></textarea>
         <div class="modal-foot">
           <div class="spacer"></div>
@@ -251,9 +254,9 @@
         <input type="text" id="cfgName" placeholder="Ex: Rafa">
       </div>
       <div class="field">
-        <label>Chave da NVIDIA</label>
+        <label>Chave da OpenAI</label>
         <p class="hint">Fica só no seu computador (não vai pro GitHub). Deixe em branco pra não alterar.</p>
-        <input type="password" id="cfgKey2" placeholder="nvapi-...">
+        <input type="password" id="cfgKey2" placeholder="sk-...">
         <p class="hint" id="cfgStatus"></p>
       </div>
       <div class="modal-foot">
@@ -302,6 +305,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

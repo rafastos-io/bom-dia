@@ -145,7 +145,10 @@ svg { display: block; }
 .btn-danger { background: transparent; border-color: var(--alta-soft); color: var(--alta); padding: 9px 16px; }
 .btn-danger:hover { background: var(--alta-soft); }
 .btn-icon { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 8px; display: grid; place-items: center; }
+.btn-icon svg { width: 18px; height: 18px; }
+.proj-card-head .spacer { flex: 1; }
 .btn-icon:hover { background: var(--surface-2); color: var(--ink); }
+.proj-del:hover, #btnProjDel:hover { background: var(--alta-soft); color: var(--alta); }
 
 /* Toolbar ------------------------------------------------------------- */
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -501,6 +504,13 @@ svg { display: block; }
 
 /* Assistente ---------------------------------------------------------- */
 .assistant-lead { color: var(--ink-soft); font-size: 15px; margin-bottom: 12px; }
+/* Poohzera (persona do assistente) */
+.poohzera-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; object-position: top center; background: var(--yellow-soft); border: 1px solid #EFE2A8; flex: none; }
+.poohzera-avatar.big { width: auto; height: 116px; border-radius: 0; object-fit: contain; background: transparent; border: none; }
+.pooh-hi { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.pooh-hi .assistant-lead { margin-bottom: 0; }
+.qmod-vinculos .qv-chips { margin-bottom: 8px; }
+.qmod-vinculos .idea-add select { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font-family: inherit; font-size: 13.5px; color: var(--ink); }
 #aiText { width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 14px; font-size: 15px; font-family: inherit; background: var(--surface-2); resize: vertical; line-height: 1.5; }
 #aiText:focus { outline: none; border-color: var(--blue); background: var(--surface); }
 .ai-setup .steps { margin: 12px 0 14px 18px; color: var(--ink-soft); font-size: 14px; line-height: 1.7; }
