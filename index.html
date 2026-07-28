@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bom Dia</title>
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
   <div class="app">
@@ -185,6 +185,14 @@
           <input type="text" id="projeto" list="projetosList" placeholder="Ex: Dina, Bellelli... deixe vazio se for avulso">
           <datalist id="projetosList"></datalist>
         </div>
+        <div class="field hidden" id="ideaLinksField">
+          <label>Vínculos <span class="opt">(liga esta ideia a projetos, rotinas e tarefas — tudo interligado)</span></label>
+          <div id="ideaLinksChips" class="idea-chips"></div>
+          <div class="idea-add">
+            <select id="ideaLinkPick"></select>
+            <button type="button" id="btnAddIdeaLink" class="btn-ghost"><span data-icon="plus"></span> Vínculo</button>
+          </div>
+        </div>
         <div class="row">
           <div class="field">
             <label>Quem pediu</label>
@@ -284,6 +292,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

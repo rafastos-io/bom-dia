@@ -25,6 +25,7 @@ NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
 TIPOS = ("tarefa", "ideia", "rotina")
 RECORRENCIAS = ("diaria", "semanal", "mensal")
+IDEA_TARGET_TIPOS = ("projeto", "rotina", "tarefa")
 
 
 # ----------------------------------------------------------------------------
@@ -94,6 +95,13 @@ def init_db():
             created_at TEXT,
             updated_at TEXT,
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS idea_links (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            idea_id     INTEGER NOT NULL,
+            target_type TEXT NOT NULL,     -- 'projeto' | 'rotina' | 'tarefa'
+            target_id   INTEGER NOT NULL,  -- projects.id ou tasks.id
+            FOREIGN KEY (idea_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
         """
     )
@@ -208,6 +216,54 @@ def _replace_subtasks(conn, task_id, items):
         )
 
 
+# ----------------------------------------------------------------------------
+# Vinculos de ideia (fase 3): uma ideia liga a VÁRIOS alvos (projeto/rotina/tarefa)
+# ----------------------------------------------------------------------------
+def _idea_links(conn, idea_id):
+    """Vinculos da ideia, resolvidos com rotulo vivo (nome do projeto / titulo da tarefa)."""
+    rows = conn.execute(
+        "SELECT id, target_type, target_id FROM idea_links WHERE idea_id = ? ORDER BY id",
+        (idea_id,)).fetchall()
+    out = []
+    for r in rows:
+        d = {"id": r["id"], "target_type": r["target_type"], "target_id": r["target_id"]}
+        if r["target_type"] == "projeto":
+            p = conn.execute("SELECT name FROM projects WHERE id = ?", (r["target_id"],)).fetchone()
+            if not p:
+                continue  # alvo pendurado (limpeza acontece nos deletes)
+            d["label"] = p["name"]
+        else:
+            t = conn.execute("SELECT title, tipo FROM tasks WHERE id = ?", (r["target_id"],)).fetchone()
+            if not t:
+                continue
+            d["label"] = t["title"]
+            d["target_tipo"] = t["tipo"]  # tipo vivo do alvo (p/ icone certo no front)
+        out.append(d)
+    return out
+
+
+def _replace_idea_links(conn, idea_id, items):
+    """Substitui todos os vinculos da ideia (mesma semantica de links/subtasks)."""
+    conn.execute("DELETE FROM idea_links WHERE idea_id = ?", (idea_id,))
+    seen = set()
+    for l in items or []:
+        if not isinstance(l, dict):
+            continue
+        tt = l.get("target_type")
+        try:
+            tid = int(l.get("target_id"))
+        except (TypeError, ValueError):
+            continue
+        if tt not in IDEA_TARGET_TIPOS or tid == idea_id:
+            continue
+        key = (tt, tid)
+        if key in seen:
+            continue
+        seen.add(key)
+        conn.execute("INSERT INTO idea_links (idea_id, target_type, target_id) VALUES (?,?,?)",
+                     (idea_id, tt, tid))
+
+
 def list_tasks():
     conn = get_db()
     tasks = conn.execute(
@@ -225,7 +281,9 @@ def list_tasks():
             "SELECT id, title, done, position FROM subtasks WHERE task_id = ? ORDER BY position, id",
             (t["id"],),
         ).fetchall()
-        result.append(task_to_dict(t, links, subs))
+        d = task_to_dict(t, links, subs)
+        d["idea_links"] = _idea_links(conn, t["id"]) if (t["tipo"] or "") == "ideia" else []
+        result.append(d)
     conn.close()
     return result
 
@@ -277,6 +335,8 @@ def create_task(data):
             (task_id, link.get("kind", "web"), (link.get("label") or "").strip(), target),
         )
     _replace_subtasks(conn, task_id, data.get("subtasks", []))
+    if tipo == "ideia":
+        _replace_idea_links(conn, task_id, data.get("idea_links", []))
     _ensure_project(conn, projeto)
     conn.commit()
     conn.close()
@@ -324,6 +384,12 @@ def update_task(task_id, data):
     # Se o payload trouxer subtasks, substitui todas.
     if "subtasks" in data:
         _replace_subtasks(conn, task_id, data["subtasks"])
+    # Vinculos de ideia: se o tipo final nao e mais 'ideia', limpa; senao, substitui se veio no payload
+    tipo_row = conn.execute("SELECT tipo FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if tipo_row and (tipo_row["tipo"] or "") != "ideia":
+        conn.execute("DELETE FROM idea_links WHERE idea_id = ?", (task_id,))
+    elif "idea_links" in data:
+        _replace_idea_links(conn, task_id, data["idea_links"])
     if "projeto" in data:
         _ensure_project(conn, data["projeto"])
     conn.commit()
@@ -357,6 +423,10 @@ def delete_task(task_id):
     conn = get_db()
     conn.execute("DELETE FROM links WHERE task_id = ?", (task_id,))
     conn.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,))
+    # vinculos de ideia: a tarefa pode ser a IDEIA ou o ALVO (rotina/tarefa)
+    conn.execute("DELETE FROM idea_links WHERE idea_id = ?", (task_id,))
+    conn.execute("DELETE FROM idea_links WHERE target_type IN ('rotina','tarefa') AND target_id = ?",
+                 (task_id,))
     conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     conn.commit()
     conn.close()
@@ -465,6 +535,7 @@ def delete_project(pid):
     p = conn.execute("SELECT name FROM projects WHERE id = ?", (pid,)).fetchone()
     if p:
         conn.execute("UPDATE tasks SET projeto = '' WHERE projeto = ?", (p["name"],))
+    conn.execute("DELETE FROM idea_links WHERE target_type = 'projeto' AND target_id = ?", (pid,))
     conn.execute("DELETE FROM project_links WHERE project_id = ?", (pid,))
     conn.execute("DELETE FROM project_notes WHERE project_id = ?", (pid,))
     conn.execute("DELETE FROM projects WHERE id = ?", (pid,))

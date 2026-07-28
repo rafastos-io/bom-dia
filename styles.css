@@ -232,6 +232,36 @@ svg { display: block; }
 .link-btn:hover { background: #dde5f2; }
 .card-foot { margin-top: 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .card-foot .routine-check + .status-select { margin-left: auto; }
+
+/* Ideias: pegada de post-it + vínculos navegáveis */
+.card.idea { background: var(--yellow-soft); border-color: #EFE2A8; }
+.card.idea .card-accent { background: var(--yellow); }
+.card.idea:hover { border-color: #E7D68F; }
+.list-row.idea { background: var(--yellow-soft); border-color: #EFE2A8; }
+.idea-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.idea-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid transparent;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: filter .14s, transform .12s var(--ease);
+}
+.idea-chip svg { width: 13px; height: 13px; flex: none; }
+.idea-chip:hover { filter: brightness(.96); transform: translateY(-1px); }
+.idea-chip.projeto { background: var(--blue-soft); color: var(--blue); }
+.idea-chip.rotina { background: var(--baixa-soft); color: var(--baixa); }
+.idea-chip.tarefa { background: var(--surface); color: var(--ink-soft); border-color: var(--line); }
+.card.idea .idea-chip.tarefa, .list-row.idea .idea-chip.tarefa { background: rgba(255,255,255,.75); border-color: #EFE2A8; }
+.idea-chip.mini { padding: 2px 8px; font-size: 11.5px; }
+.idea-chip .rm { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 11px; padding: 0 0 0 3px; opacity: .6; }
+.idea-chip .rm:hover { opacity: 1; }
+/* Modal: picker de vínculos da ideia */
+.idea-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.idea-chips .idea-chip { cursor: default; }
+.idea-add { display: flex; gap: 8px; }
+.idea-add select { flex: 1; min-width: 0; }
+
 /* Check de rotina (vale o período atual; reseta na virada) */
 .routine-check {
   display: inline-flex; align-items: center; gap: 7px;

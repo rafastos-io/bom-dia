@@ -13,6 +13,8 @@ let PROJ_OPEN = null;    // nome do projeto aberto na "central" (isolado), ou nu
 let PROJ_TAB = "demandas"; // sub-aba da central: demandas | anotacoes | links
 let NOTES = [];          // anotações do projeto aberto
 let NOTE_OPEN = null;    // id da anotação aberta
+let IDEA_LINKS = [];     // vínculos da ideia em edição no modal (temporário)
+let IDEA_SELF = null;    // id da ideia em edição (pra não vincular a si mesma)
 
 const el = (id) => document.getElementById(id);
 const AREA_LABEL = { hoje: "Hoje", agenda: "Agenda", projetos: "Projetos", ideias: "Ideias", rotina: "Rotina" };
@@ -97,8 +99,12 @@ function fmtDate(d) { if (!d) return ""; const [y, m, day] = d.split("-"); retur
 function activeTasks() { return TASKS.filter((t) => t.status !== "concluida"); }
 
 function matchesFilters(t, { ignoreStatus = false, ignoreArea = false } = {}) {
-  if (!ignoreArea && !inArea(t, AREA)) return false;
-  if (AREA === "projetos" && PROJ_OPEN && (t.projeto || "").trim() !== PROJ_OPEN) return false;
+  if (AREA === "projetos" && PROJ_OPEN) {
+    // entra na central: tarefa do projeto OU ideia vinculada a ele
+    const own = (t.projeto || "").trim() === PROJ_OPEN;
+    const linked = (t.idea_links || []).some((l) => l.target_type === "projeto" && l.label === PROJ_OPEN);
+    if (!own && !linked) return false;
+  } else if (!ignoreArea && !inArea(t, AREA)) return false;
   if (!ignoreStatus) {
     if (FILTER === "ativas" && t.status === "concluida") return false;
     if (FILTER === "concluida" && t.status !== "concluida") return false;
@@ -237,6 +243,36 @@ function routineHTML(t) {
     title="Recorrência ${RECOR_LABEL[t.recorrencia].toLowerCase()} — clique pra ${t.feita ? "desfazer" : "marcar"}">
     ${ic(t.feita ? "check" : "repeat")} ${t.feita ? `Feito ${per}` : `Marcar feito ${per}`}</button>`;
 }
+// Vínculos de ideia (fase 3): chips navegáveis pra projeto/rotina/tarefa
+function ideaChipKind(l) {
+  if (l.target_type === "projeto") return "projeto";
+  return (l.target_tipo || l.target_type) === "rotina" ? "rotina" : "tarefa";
+}
+function ideaLinkIcon(l) {
+  if (l.target_type === "projeto") return "layers";
+  return (l.target_tipo || l.target_type) === "rotina" ? "repeat" : "list";
+}
+function ideaChipHTML(l, mini = false) {
+  const kind = ideaChipKind(l);
+  return `<button class="idea-chip ${kind}${mini ? " mini" : ""}" data-ilink="${l.target_type}:${l.target_id}"
+    title="${kind === "projeto" ? "Projeto" : kind === "rotina" ? "Rotina" : "Tarefa"}: ${esc(l.label)}">${ic(ideaLinkIcon(l))} ${esc(l.label)}</button>`;
+}
+function ideaLinksHTML(t) {
+  const ls = t.idea_links || [];
+  if (!ls.length) return "";
+  return `<div class="idea-links">${ls.map((l) => ideaChipHTML(l)).join("")}</div>`;
+}
+function openIdeaTarget(tt, id) {
+  if (tt === "projeto") {
+    const p = PROJECTS.find((x) => x.id === id);
+    if (!p) { toast("Projeto não encontrado (foi excluído?)", true); return; }
+    AREA = "projetos"; openProject(p.name);
+    return;
+  }
+  const t = TASKS.find((x) => x.id === id);
+  if (t) openModal(t);
+  else toast("Não encontrei o alvo (foi excluído?)", true);
+}
 function linksHTML(t) {
   return (t.links || []).map((l) =>
     `<button class="link-btn" data-kind="${l.kind}" data-target="${esc(l.target)}" title="${esc(l.target)}">${ic(l.kind === "pasta" ? "folder" : "link")} ${esc(l.label || l.target)}</button>`
@@ -285,11 +321,17 @@ function wireCard(c, t) {
     await api("POST", `/api/tasks/${t.id}/feito`, { done: !t.feita });
     loadTasks();
   });
+  c.querySelectorAll("[data-ilink]").forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const [tt, id] = b.dataset.ilink.split(":");
+    openIdeaTarget(tt, Number(id));
+  }));
 }
 
 function card(t, metaOpts = {}) {
   const c = document.createElement("div");
-  c.className = `card ${t.priority}` + (t.status === "concluida" ? " done" : "");
+  const isIdea = (t.tipo || "tarefa") === "ideia";
+  c.className = `card ${t.priority}` + (t.status === "concluida" ? " done" : "") + (isIdea ? " idea" : "");
   c.draggable = true; c.dataset.id = t.id;
   let people = "";
   if (t.requested_by) people += `<span>Pediu: <b>${esc(t.requested_by)}</b></span>`;
@@ -298,6 +340,7 @@ function card(t, metaOpts = {}) {
   c.innerHTML = `
     <div class="card-head"><div class="card-accent"></div><div class="card-title">${esc(t.title)}</div></div>
     <div class="card-meta">${metaHTML(t, metaOpts)}</div>
+    ${ideaLinksHTML(t)}
     ${t.description ? `<div class="card-desc">${esc(t.description)}</div>` : ""}
     ${subtasksHTML(t)}
     ${people ? `<div class="card-people">${people}</div>` : ""}
@@ -309,13 +352,15 @@ function card(t, metaOpts = {}) {
 
 function listRow(t) {
   const r = document.createElement("div");
-  r.className = `list-row ${t.priority}` + (t.status === "concluida" ? " done" : "");
+  const isIdea = (t.tipo || "tarefa") === "ideia";
+  r.className = `list-row ${t.priority}` + (t.status === "concluida" ? " done" : "") + (isIdea ? " idea" : "");
   r.draggable = true; r.dataset.id = t.id;
   const people = [t.requested_by && `de ${esc(t.requested_by)}`, t.send_to && `→ ${esc(t.send_to)}`].filter(Boolean).join("  ");
+  const ilinks = (t.idea_links || []).map((l) => ideaChipHTML(l, true)).join("");
   r.innerHTML = `
     <span class="dot dot-${t.priority}" title="${PRIO_LABEL[t.priority]}"></span>
     <span class="list-title card-title">${esc(t.title)}${subBadge(t)}</span>
-    <span class="list-people">${people}</span>
+    <span class="list-people">${[people, ilinks].filter(Boolean).join(" ")}</span>
     <span class="list-due">${routineHTML(t) || (t.due_date ? (isLate(t) ? "⚠ " : "") + fmtDate(t.due_date) : "")}</span>
     <span class="list-links">${linksHTML(t)}</span>
     <span class="list-status">${statusSelectHTML(t)}</span>`;
@@ -776,6 +821,36 @@ function collectSubtasks() {
 function syncRecorField() {
   el("recorField").classList.toggle("hidden", el("tipo").value !== "rotina");
 }
+function syncIdeaField() {
+  el("ideaLinksField").classList.toggle("hidden", el("tipo").value !== "ideia");
+}
+function renderIdeaChipsModal() {
+  const wrap = el("ideaLinksChips");
+  wrap.innerHTML = IDEA_LINKS.length ? "" : `<span class="hint">Nenhum vínculo ainda — escolha abaixo e clique em “+ Vínculo”.</span>`;
+  IDEA_LINKS.forEach((l, i) => {
+    const chip = document.createElement("span");
+    chip.className = "idea-chip " + ideaChipKind(l);
+    chip.innerHTML = `${ic(ideaLinkIcon(l))} ${esc(l.label)}<button type="button" class="rm" title="Remover vínculo">✕</button>`;
+    chip.querySelector(".rm").addEventListener("click", () => {
+      IDEA_LINKS.splice(i, 1);
+      renderIdeaChipsModal(); fillIdeaLinkPick(IDEA_SELF);
+    });
+    wrap.appendChild(chip);
+  });
+}
+function fillIdeaLinkPick(selfId) {
+  const sel = el("ideaLinkPick");
+  const has = new Set(IDEA_LINKS.map((l) => `${l.target_type}:${l.target_id}`));
+  const grp = (label, items) => items.length ? `<optgroup label="${label}">${items.join("")}</optgroup>` : "";
+  const projs = PROJECTS.filter((p) => !has.has(`projeto:${p.id}`))
+    .map((p) => `<option value="projeto:${p.id}">${esc(p.name)}</option>`);
+  const rots = TASKS.filter((t) => t.tipo === "rotina" && t.id !== selfId && !has.has(`rotina:${t.id}`))
+    .map((t) => `<option value="rotina:${t.id}">${esc(t.title)}</option>`);
+  const tars = TASKS.filter((t) => (t.tipo || "tarefa") === "tarefa" && t.id !== selfId && !has.has(`tarefa:${t.id}`))
+    .map((t) => `<option value="tarefa:${t.id}">${esc(t.title)}</option>`);
+  const html = grp("Projetos", projs) + grp("Rotinas", rots) + grp("Tarefas", tars);
+  sel.innerHTML = html || `<option value="">Nada mais pra vincular</option>`;
+}
 function openModal(task, presets = {}) {
   el("taskForm").reset(); el("linksList").innerHTML = ""; el("subtasksList").innerHTML = "";
   if (task) {
@@ -802,7 +877,12 @@ function openModal(task, presets = {}) {
     el("due_date").value = presets.due_date || "";
     el("btnDelete").classList.add("hidden");
   }
-  syncRecorField();
+  IDEA_SELF = task ? task.id : null;
+  IDEA_LINKS = task && task.idea_links
+    ? task.idea_links.map((l) => ({ target_type: l.target_type, target_id: l.target_id, label: l.label, target_tipo: l.target_tipo }))
+    : [];
+  renderIdeaChipsModal(); fillIdeaLinkPick(IDEA_SELF);
+  syncRecorField(); syncIdeaField();
   openOverlay("modal"); el("title").focus();
 }
 function collectLinks() {
@@ -821,6 +901,9 @@ async function saveTask(e) {
     description: el("description").value, links: collectLinks(), subtasks: collectSubtasks(),
     recorrencia: el("tipo").value === "rotina" ? el("recorrencia").value : "",
   };
+  if (el("tipo").value === "ideia") {
+    payload.idea_links = IDEA_LINKS.map((l) => ({ target_type: l.target_type, target_id: l.target_id }));
+  }
   const id = el("taskId").value;
   if (id) await api("PUT", `/api/tasks/${id}`, payload);
   else await api("POST", "/api/tasks", payload);
@@ -1095,7 +1178,16 @@ el("btnSaveConfig").addEventListener("click", async () => {
   closeOverlay("configModal"); toast("Ajustes salvos ✓"); render();
 });
 el("taskForm").addEventListener("submit", saveTask);
-el("tipo").addEventListener("change", syncRecorField);
+el("tipo").addEventListener("change", () => { syncRecorField(); syncIdeaField(); });
+el("btnAddIdeaLink").addEventListener("click", () => {
+  const sel = el("ideaLinkPick");
+  const v = sel.value;
+  if (!v || !v.includes(":")) return;
+  const [tt, id] = v.split(":");
+  const label = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "";
+  IDEA_LINKS.push({ target_type: tt, target_id: Number(id), label });
+  renderIdeaChipsModal(); fillIdeaLinkPick(IDEA_SELF);
+});
 el("btnDelete").addEventListener("click", deleteTask);
 el("btnAddLink").addEventListener("click", () => el("linksList").appendChild(blankLinkRow()));
 el("btnAddSub").addEventListener("click", () => el("subtasksList").appendChild(blankSubRow()));

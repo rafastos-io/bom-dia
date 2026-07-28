@@ -10,7 +10,7 @@ Escrito em 2026-07-28. Idioma do projeto: **português do Brasil (PT-BR)** — r
 
 ## ⚠️ LEIA PRIMEIRO — estado do git
 
-O último commit é **`71dc6e4` (v7 — Fase 2, Rotinas)**. Working tree limpo.
+O último commit é **v8 (Fase 3, Ideias)** — veja `git log`. Working tree limpo.
 
 Fim das mensagens de commit deve levar o trailer do agente que fez o trabalho
 (ex.: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`).
@@ -39,7 +39,7 @@ de verdade** (rodar, `curl`, screenshot) em vez de só planejar; ao fim de um bl
 - Dependências extras (só p/ o ícone da bandeja): `pip install pystray pillow`. O servidor em si é stdlib.
 
 ### Cache / versão dos assets (IMPORTANTE)
-- `index.html` referencia os assets versionados: `styles.css?v=9`, `app.js?v=9`. **Ao editar
+- `index.html` referencia os assets versionados: `styles.css?v=10`, `app.js?v=10`. **Ao editar
   app.js/styles.css, suba o número `?v=` nos dois** (senão o navegador serve cache antigo).
 - O servidor manda `Cache-Control: no-cache` (método `end_headers` em `bomdia.py`).
 - **Mudou o `bomdia.py`? Precisa REINICIAR o app** (bandeja → Sair → abrir de novo). Mudou só
@@ -64,6 +64,11 @@ Tabelas (todas criadas idempotentemente em `init_db()`; migrações são `ALTER 
 - **projects** — projeto como **entidade**: `id, name(UNIQUE), scope, people, status, collapsed, position, created_at`.
 - **project_links** — links **do projeto**: `id, project_id, kind, label, target`.
 - **project_notes** — anotações do projeto: `id, project_id, title, body, position, created_at, updated_at`.
+- **idea_links** — vínculos de ideia (v8): `id, idea_id, target_type(projeto|rotina|tarefa), target_id`.
+  Uma ideia liga a **VÁRIOS** alvos ao mesmo tempo (projeto + rotina + tarefa). `target_id` aponta pra
+  `projects.id` ou `tasks.id`. O GET resolve **rótulo vivo** (nome/título atual via join; tipo vivo do
+  alvo em `target_tipo`). Deletes limpam as duas direções (`delete_task`: ideia ou alvo;
+  `delete_project`: alvo projeto). Trocar o tipo pra fora de `ideia` limpa os vínculos.
 
 **Decisões-chave do modelo:**
 - `projeto` na tarefa é **chave por NOME** (string), não por id. `projects.name` é UNIQUE.
@@ -79,7 +84,8 @@ Tabelas (todas criadas idempotentemente em `init_db()`; migrações são `ALTER 
 ```
 GET    /api/tasks
 POST   /api/tasks                     {title,tipo,projeto,priority,due_date,description,
-                                       requested_by,send_to,links[],subtasks[],recorrencia}
+                                       requested_by,send_to,links[],subtasks[],recorrencia,
+                                       idea_links[] (só p/ tipo=ideia: [{target_type,target_id}])}
 PUT    /api/tasks/<id>                (mesmos campos, parciais; links[]/subtasks[] substituem tudo;
                                        trocar recorrencia/tipo zera feito_em)
 DELETE /api/tasks/<id>
@@ -172,15 +178,13 @@ Implementado como decidido: `recorrencia` + `feito_em` (período), check reseta 
 IA extrai recorrência. Ideias de continuação (não decididas): rotinas do dia no dashboard Hoje;
 pergunta de lacuna de recorrência no fluxo do assistente.
 
-### Fase 3 — Ideias (post-it linkável)  ← PRÓXIMA
-- Ideia = anotação leve, **sem prazo obrigatório**, pegada de post-it.
-- **Decidido:** uma ideia **vincula a VÁRIOS** ao mesmo tempo (projeto + rotina + tarefa) — vínculo
-  **múltiplo** (tabela de junção, ex.: `idea_links(idea_id, target_type, target_id)`).
-- Exemplo real do usuário: ideia "melhorar exportação de leads" → vinculada à **rotina** "exportar
-  leads" → do **projeto** GRUPO URBAN. Tudo interligado.
-- Hoje "ideia" é só um `tipo` de tarefa; transformar em algo mais leve/visual e com vínculos.
+### ~~Fase 3 — Ideias (post-it linkável)~~  ✅ FEITA (v8)
+Implementado como decidido: tabela `idea_links` (vínculo múltiplo), post-it amarelo (`.card.idea`),
+chips navegáveis coloridos por tipo (azul=projeto → abre central; verde=rotina / branco=tarefa →
+abre modal do alvo), picker agrupado no modal, ideia vinculada **aparece na central do projeto**
+(`matchesFilters`). Vínculos NÃO são extraídos pela IA ainda — isso é parte da Fase 4.
 
-### Fase 4 — Puzeira (persona do assistente)
+### Fase 4 — Puzeira (persona do assistente)  ← PRÓXIMA
 - Dar **nome e cara** ao assistente de IA: ele se chama **Puzeira**. "Organizar meu dia" ficou raso
   pro que ele faz.
 - Avatar/mascote: o usuário vai gerar/mandar a imagem → salvar em `assets/puzeira.png` e usar no
