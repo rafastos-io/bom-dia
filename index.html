@@ -4,7 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bom Dia</title>
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=26">
+  <script>
+    // Aplica o tema antes de pintar (sem flash). Segue o sistema se nao houver escolha salva.
+    (function () {
+      var t = localStorage.getItem("theme");
+      if (t !== "dark" && t !== "light") {
+        t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
 </head>
 <body>
   <div class="app">
@@ -22,6 +32,7 @@
         <button class="nav-item" data-area="rotina"><span data-icon="repeat"></span> Rotina <span class="nav-count" data-count="rotina"></span></button>
       </nav>
       <div class="sidebar-foot">
+        <button class="nav-item subtle" id="btnTheme"><span data-icon="moon"></span> Modo noturno</button>
         <button class="nav-item subtle" id="btnConfig"><span data-icon="gear"></span> Ajustes</button>
       </div>
     </aside>
@@ -33,10 +44,15 @@
         <h1 id="greeting" class="greeting">Bom dia</h1>
         <p id="subtitle" class="subtitle"></p>
 
+        <div class="pooh-cta" id="btnAssistant" role="button" tabindex="0">
+          <img class="poohzera-avatar med" src="assets/puzeira.png" alt="Poohzera">
+          <div class="pooh-cta-text">
+            <div class="pooh-cta-title">Fala comigo, Poohzera</div>
+            <div class="pooh-cta-sub">Escreve solto o que chegou — eu organizo em tarefas pra você.</div>
+          </div>
+          <span class="pooh-cta-go"><span data-icon="sparkle"></span> Organizar</span>
+        </div>
         <div class="hero-actions">
-          <button id="btnAssistant" class="btn-hero">
-            <span data-icon="sparkle"></span> Fala comigo, Poohzera
-          </button>
           <button id="btnNew" class="btn-soft"><span data-icon="plus"></span> Adicionar tarefa</button>
           <button id="btnRemind" class="btn-soft"><span data-icon="clock"></span> Me lembrar depois</button>
         </div>
@@ -207,8 +223,9 @@
               <textarea id="description" rows="5" placeholder="Detalhes..."></textarea>
             </div>
           </div>
-          <!-- Coluna direita: listas -->
+          <!-- Coluna direita: andamento + listas -->
           <div class="modal-col">
+            <div class="sub-progress hidden" id="subProgress"></div>
             <div class="field hidden" id="ideaLinksField">
               <label>Vínculos <span class="opt">(liga a projetos, rotinas e tarefas)</span></label>
               <div id="ideaLinksChips" class="idea-chips"></div>
@@ -234,11 +251,34 @@
         </div><!-- /.modal-body -->
         <div class="modal-foot">
           <button type="button" id="btnDelete" class="btn-danger hidden">Excluir</button>
+          <button type="button" id="btnWhats" class="btn-soft hidden"><span data-icon="whatsapp"></span> Recado</button>
           <div class="spacer"></div>
           <button type="button" class="btn-ghost" data-close="modal">Cancelar</button>
           <button type="submit" class="btn-primary">Salvar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: recado pro WhatsApp -->
+  <div id="waModal" class="modal-overlay hidden">
+    <div class="modal modal-wa">
+      <div class="modal-head">
+        <h2><span data-icon="whatsapp"></span> Recado pro WhatsApp</h2>
+        <button class="btn-icon" data-close="waModal"><span data-icon="close"></span></button>
+      </div>
+      <p class="hint">Escolha o tom, ajuste se quiser e copie. A IA monta o texto a partir da tarefa.</p>
+      <div class="wa-modes" id="waModes">
+        <button type="button" class="wa-mode active" data-modo="avisar">Avisar solicitante <span class="wa-mode-sub">update curto</span></button>
+        <button type="button" class="wa-mode" data-modo="delegar">Delegar pro time <span class="wa-mode-sub">briefing completo</span></button>
+      </div>
+      <textarea id="waText" class="wa-text" rows="10" placeholder="Gerando o recado..."></textarea>
+      <div class="modal-foot">
+        <button type="button" class="btn-ghost wa-regen" id="btnWaRegen"><span data-icon="repeat"></span> Gerar de novo</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn-ghost" data-close="waModal">Fechar</button>
+        <button type="button" class="btn-primary" id="btnWaCopy">Copiar</button>
+      </div>
     </div>
   </div>
 
@@ -305,6 +345,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>

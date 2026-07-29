@@ -40,6 +40,7 @@ function inArea(t, area) {
 const S = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
 const ICONS = {
   sun: `<svg viewBox="0 0 24 24" ${S}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
+  moon: `<svg viewBox="0 0 24 24" ${S}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" ${S}><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,
   calendar: `<svg viewBox="0 0 24 24" ${S}><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>`,
   grip: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>`,
@@ -61,6 +62,7 @@ const ICONS = {
   back: `<svg viewBox="0 0 24 24" ${S}><path d="M15 18l-6-6 6-6"/></svg>`,
   check: `<svg viewBox="0 0 24 24" ${S}><path d="M20 6 9 17l-5-5"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" ${S}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>`,
+  whatsapp: `<svg viewBox="0 0 24 24" ${S}><path d="M21 11.5a8.5 8.5 0 0 1-12.5 7.5L3 20l1.1-5.4A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 8.8c0-.3.3-.5.5-.5h.8c.2 0 .4.1.5.4l.5 1.3c.1.2 0 .4-.1.5l-.5.6c.5 1 1.3 1.8 2.3 2.3l.6-.5c.1-.1.3-.2.5-.1l1.3.5c.3.1.4.3.4.5v.8c0 .3-.2.5-.5.5A6 6 0 0 1 8.5 8.8Z" fill="currentColor" stroke="none"/></svg>`,
 };
 function ic(name) { return `<span class="i">${ICONS[name] || ""}</span>`; }
 function injectIcons() {
@@ -368,6 +370,8 @@ function wireCard(c, t) {
     await api("POST", `/api/tasks/${t.id}/feito`, { done: !t.feita });
     loadTasks();
   });
+  const wc = c.querySelector("[data-whats]");
+  if (wc) wc.addEventListener("click", (e) => { e.stopPropagation(); openWhatsapp(t); });
   c.querySelectorAll("[data-ilink]").forEach((b) => b.addEventListener("click", (e) => {
     e.stopPropagation();
     const [tt, id] = b.dataset.ilink.split(":");
@@ -385,13 +389,13 @@ function card(t, metaOpts = {}) {
   if (t.send_to) people += `<span>Enviar p/: <b>${esc(t.send_to)}</b></span>`;
   const links = linksHTML(t);
   c.innerHTML = `
-    <div class="card-head"><div class="card-accent"></div><div class="card-title">${esc(t.title)}</div></div>
+    <div class="card-head"><span class="dot dot-${t.priority} card-dot" title="${PRIO_LABEL[t.priority]}"></span><div class="card-title">${esc(t.title)}</div></div>
     <div class="card-meta">${metaHTML(t, metaOpts)}</div>
     ${ideaLinksHTML(t)}
     ${t.description ? `<div class="card-desc">${esc(t.description)}</div>` : ""}
     ${subtasksHTML(t)}
     ${links ? `<div class="card-links">${links}</div>` : ""}
-    <div class="card-foot">${routineHTML(t)}${statusSelectHTML(t)}</div>`;
+    <div class="card-foot">${routineHTML(t)}<button type="button" class="btn-icon card-whats" data-whats="1" title="Gerar recado pro WhatsApp">${ICONS.whatsapp}</button>${statusSelectHTML(t)}</div>`;
   wireCard(c, t); addDrag(c, t);
   // ideias vinculadas a esta tarefa/rotina aparecem aqui dentro (post-it)
   if (!isIdea) {
@@ -795,8 +799,10 @@ function renderCalendar() {
         <button class="cal-btn" id="calNext" title="Próximo mês">›</button>
       </div>
     </div>
-    <div class="cal-grid cal-head">${WEEKDAYS.map((w) => `<div class="cal-wd">${w}</div>`).join("")}</div>
-    <div class="cal-grid cal-body">${cells}</div>
+    <div class="cal-surface">
+      <div class="cal-grid cal-head">${WEEKDAYS.map((w) => `<div class="cal-wd">${w}</div>`).join("")}</div>
+      <div class="cal-grid cal-body">${cells}</div>
+    </div>
     ${semPrazo ? `<p class="cal-foot">${semPrazo} tarefa${semPrazo > 1 ? "s" : ""} sem prazo — ${semPrazo > 1 ? "não aparecem" : "não aparece"} aqui. Defina um prazo pra vê-${semPrazo > 1 ? "las" : "la"} no calendário.</p>` : ""}`;
 
   el("calPrev").addEventListener("click", () => { CAL = new Date(y, m - 1, 1); renderCalendar(); });
@@ -851,6 +857,22 @@ function blankLinkRow(kind = "web", label = "", target = "") {
   row.querySelector(".rm").addEventListener("click", () => row.remove());
   return row;
 }
+// Andamento da task: barra + X/N das subtarefas, atualiza ao vivo no modal.
+function updateSubProgress() {
+  const box = el("subProgress");
+  if (!box) return;
+  const rows = [...el("subtasksList").querySelectorAll(".sub-row")];
+  const total = rows.length;
+  if (!total) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const done = rows.filter((r) => r.querySelector(".s-done").checked).length;
+  const pct = Math.round((done / total) * 100);
+  box.classList.remove("hidden");
+  box.classList.toggle("full", pct === 100);
+  box.innerHTML = `
+    <div class="sp-top"><span class="sp-title">Andamento</span><span class="sp-pct">${pct}%</span></div>
+    <div class="sp-bar"><i style="width:${pct}%"></i></div>
+    <div class="sp-count">${done} de ${total} conclu${done === 1 ? "ído" : "ídos"}</div>`;
+}
 function blankSubRow(title = "", done = false) {
   const row = document.createElement("div");
   row.className = "sub-row";
@@ -859,7 +881,8 @@ function blankSubRow(title = "", done = false) {
     <input type="checkbox" class="s-done"${done ? " checked" : ""}>
     <input class="s-title" placeholder="Passo desta demanda..." value="${esc(title)}">
     <button type="button" class="rm">✕</button>`;
-  row.querySelector(".rm").addEventListener("click", () => row.remove());
+  row.querySelector(".rm").addEventListener("click", () => { row.remove(); updateSubProgress(); });
+  row.querySelector(".s-done").addEventListener("change", updateSubProgress);
   // drag-and-drop para reordenar (só inicia pelo puxador, pra não atrapalhar o texto)
   const handle = row.querySelector(".s-drag");
   handle.addEventListener("mousedown", () => { row.draggable = true; });
@@ -954,6 +977,7 @@ function openModal(task, presets = {}) {
     (task.links || []).forEach((l) => el("linksList").appendChild(blankLinkRow(l.kind, l.label, l.target)));
     (task.subtasks || []).forEach((s) => el("subtasksList").appendChild(blankSubRow(s.title, s.done)));
     el("btnDelete").classList.remove("hidden");
+    el("btnWhats").classList.remove("hidden");
   } else {
     el("modalTitle").textContent = "Nova tarefa";
     el("taskId").value = "";
@@ -962,13 +986,14 @@ function openModal(task, presets = {}) {
     el("projeto").value = presets.projeto || "";
     el("due_date").value = presets.due_date || "";
     el("btnDelete").classList.add("hidden");
+    el("btnWhats").classList.add("hidden");
   }
   IDEA_SELF = task ? task.id : null;
   IDEA_LINKS = task && task.idea_links
     ? task.idea_links.map((l) => ({ target_type: l.target_type, target_id: l.target_id, label: l.label, target_tipo: l.target_tipo }))
     : [];
   renderIdeaChipsModal(); fillIdeaLinkPick(IDEA_SELF);
-  syncRecorField(); syncIdeaField();
+  syncRecorField(); syncIdeaField(); updateSubProgress();
   openOverlay("modal"); el("title").focus();
 }
 function collectLinks() {
@@ -999,6 +1024,58 @@ async function deleteTask() {
   const id = el("taskId").value; if (!id) return;
   if (!confirm("Excluir esta tarefa?")) return;
   await api("DELETE", `/api/tasks/${id}`); closeOverlay("modal"); loadTasks();
+}
+
+// --- Recado pro WhatsApp (IA) ---------------------------------------
+let WA_TASK = null;   // tarefa alvo do recado (do form ou do card)
+let WA_MODO = "avisar";
+// Monta a tarefa a partir do form aberto (reflete edições ainda não salvas)
+function taskFromForm() {
+  const projeto = el("projeto").value.trim();
+  const proj = PROJECTS.find((p) => p.name === projeto);
+  return {
+    title: el("title").value.trim(),
+    tipo: el("tipo").value,
+    description: el("description").value.trim(),
+    projeto,
+    proj_scope: proj ? (proj.scope || "") : "",
+    proj_people: proj ? (proj.people || "") : "",
+    priority: el("priority").value,
+    due_date: el("due_date").value,
+    requested_by: el("requested_by").value.trim(),
+    send_to: el("send_to").value.trim(),
+    subtasks: collectSubtasks(),
+    links: collectLinks(),
+  };
+}
+function openWhatsapp(task) {
+  if (!task || !(task.title || "").trim()) { toast("Dá um título pra tarefa primeiro 🙂", true); return; }
+  WA_TASK = task; WA_MODO = "avisar";
+  [...el("waModes").children].forEach((b) => b.classList.toggle("active", b.dataset.modo === WA_MODO));
+  openOverlay("waModal");
+  generateWa();
+}
+async function generateWa() {
+  const box = el("waText");
+  box.value = ""; box.classList.add("loading"); box.placeholder = "Gerando o recado...";
+  el("btnWaCopy").disabled = true; el("btnWaRegen").disabled = true;
+  const r = await api("POST", "/api/ai/whatsapp", { task: WA_TASK, modo: WA_MODO });
+  box.classList.remove("loading");
+  el("btnWaCopy").disabled = false; el("btnWaRegen").disabled = false;
+  if (r.error) { toast(r.error, true); box.placeholder = "Não deu pra gerar. Tenta de novo?"; return; }
+  box.value = r.mensagem || "";
+}
+async function copyWa() {
+  const txt = el("waText").value;
+  if (!txt.trim()) { toast("Nada pra copiar ainda.", true); return; }
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast("Copiado ✓");
+  } catch {
+    // fallback pra navegadores sem clipboard API
+    el("waText").select(); document.execCommand("copy");
+    toast("Copiado ✓");
+  }
 }
 
 // --- Assistente -----------------------------------------------------
@@ -1310,6 +1387,18 @@ el("btnAssistant").addEventListener("click", openAssistant);
 el("btnNew").addEventListener("click", () => openModal(null));
 el("btnNew2").addEventListener("click", () => openModal(null));
 el("btnRemind").addEventListener("click", () => openModal(null, { area: "hoje", due_date: tomorrow() }));
+// --- Tema (claro/escuro) --------------------------------------------
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  localStorage.setItem("theme", t);
+  const dark = t === "dark";
+  const btn = el("btnTheme");
+  if (btn) btn.innerHTML = `${ic(dark ? "sun" : "moon")} ${dark ? "Modo claro" : "Modo noturno"}`;
+}
+applyTheme(document.documentElement.getAttribute("data-theme") || "light");
+el("btnTheme").addEventListener("click", () =>
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
+
 el("btnConfig").addEventListener("click", openConfig);
 el("btnOrganize").addEventListener("click", organize);
 el("btnSaveKey").addEventListener("click", async () => {
@@ -1326,8 +1415,20 @@ el("tipo").addEventListener("change", () => { syncRecorField(); syncIdeaField();
 el("ideaLinkPick").addEventListener("change", addIdeaLinkFromPick); // vincula na hora que escolhe
 el("btnAddIdeaLink").addEventListener("click", addIdeaLinkFromPick);  // botão continua funcionando
 el("btnDelete").addEventListener("click", deleteTask);
+el("btnWhats").addEventListener("click", () => openWhatsapp(taskFromForm()));
+el("btnWaCopy").addEventListener("click", copyWa);
+el("btnWaRegen").addEventListener("click", generateWa);
+el("waModes").addEventListener("click", (e) => {
+  const b = e.target.closest(".wa-mode"); if (!b || b.dataset.modo === WA_MODO) return;
+  WA_MODO = b.dataset.modo;
+  [...el("waModes").children].forEach((c) => c.classList.toggle("active", c === b));
+  generateWa();
+});
 el("btnAddLink").addEventListener("click", () => el("linksList").appendChild(blankLinkRow()));
-el("btnAddSub").addEventListener("click", () => el("subtasksList").appendChild(blankSubRow()));
+el("btnAddSub").addEventListener("click", () => {
+  const r = blankSubRow(); el("subtasksList").appendChild(r);
+  r.querySelector(".s-title").focus(); updateSubProgress();
+});
 enableSubReorder(el("subtasksList"));
 el("projForm").addEventListener("submit", saveProject);
 el("btnProjDelete").addEventListener("click", deleteProjectFromModal);

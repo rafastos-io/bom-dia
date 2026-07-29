@@ -686,18 +686,22 @@ Regras:
 """
 
 
-def call_openai(messages, model=None, temperature=0.2, timeout=45):
+def call_openai(messages, model=None, temperature=0.2, timeout=45, json_mode=True):
     cfg = load_config()
     key = cfg.get("openai_api_key", "").strip()
     if not api_key_ok(key):
         raise RuntimeError("Chave da OpenAI nao configurada (esperado algo como sk-...).")
-    payload = json.dumps({
+    body = {
         "model": model or cfg.get("model", DEFAULT_MODEL),
         "messages": messages,
         "temperature": temperature,
         "max_tokens": 1024,
-        "response_format": {"type": "json_object"},
-    }).encode("utf-8")
+    }
+    # json_mode=True forca resposta em JSON (usado pelo parser). O recado do WhatsApp
+    # e texto corrido, entao chama com json_mode=False.
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+    payload = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
         OPENAI_URL, data=payload, method="POST",
         headers={"Content-Type": "application/json",
@@ -777,6 +781,125 @@ def ai_parse(text):
             "motivo": (t.get("motivo") or "").strip(),
         })
     return clean
+
+
+# ----------------------------------------------------------------------------
+# Recado de WhatsApp (IA) - texto pronto pra copiar e mandar
+# ----------------------------------------------------------------------------
+PRIO_TXT = {"alta": "alta", "media": "media", "baixa": "baixa"}
+
+
+def _fmt_data_br(iso):
+    """AAAA-MM-DD -> DD/MM/AAAA (deixa o resto passar como veio)."""
+    iso = (iso or "").strip()
+    try:
+        d = datetime.strptime(iso, "%Y-%m-%d").date()
+        return d.strftime("%d/%m/%Y")
+    except ValueError:
+        return iso
+
+
+def _wa_contexto(task):
+    """Monta um bloco de contexto legivel a partir do dict da tarefa (o que a IA le)."""
+    linhas = []
+    add = linhas.append
+    titulo = (task.get("title") or "").strip()
+    add(f"Titulo: {titulo}")
+    tipo = (task.get("tipo") or "tarefa").strip()
+    if tipo and tipo != "tarefa":
+        add(f"Tipo: {tipo}")
+    if (task.get("description") or "").strip():
+        add(f"Descricao: {task['description'].strip()}")
+    if (task.get("projeto") or "").strip():
+        add(f"Projeto: {task['projeto'].strip()}")
+    if (task.get("proj_scope") or "").strip():
+        add(f"Escopo do projeto: {task['proj_scope'].strip()}")
+    if (task.get("proj_people") or "").strip():
+        add(f"Envolvidos no projeto: {task['proj_people'].strip()}")
+    if (task.get("priority") or "").strip():
+        add(f"Prioridade: {PRIO_TXT.get(task['priority'], task['priority'])}")
+    if (task.get("due_date") or "").strip():
+        add(f"Prazo: {_fmt_data_br(task['due_date'])}")
+    if (task.get("requested_by") or "").strip():
+        add(f"Quem pediu: {task['requested_by'].strip()}")
+    if (task.get("send_to") or "").strip():
+        add(f"Para enviar a: {task['send_to'].strip()}")
+    if (task.get("status") or "").strip():
+        add(f"Status: {task['status'].strip()}")
+    # subtarefas com andamento
+    subs = task.get("subtasks") or []
+    norm = []
+    for s in subs:
+        if isinstance(s, str):
+            norm.append({"title": s.strip(), "done": 0})
+        elif isinstance(s, dict) and (s.get("title") or "").strip():
+            norm.append({"title": s["title"].strip(), "done": 1 if s.get("done") else 0})
+    if norm:
+        feito = sum(1 for s in norm if s["done"])
+        pct = round(feito * 100 / len(norm))
+        add(f"Subtarefas ({feito}/{len(norm)} feitas, {pct}%):")
+        for s in norm:
+            add(f"  [{'x' if s['done'] else ' '}] {s['title']}")
+    # links
+    links = task.get("links") or []
+    if links:
+        add("Links:")
+        for l in links:
+            if not isinstance(l, dict):
+                continue
+            target = (l.get("target") or "").strip()
+            if not target:
+                continue
+            label = (l.get("label") or "").strip()
+            add(f"  - {label + ': ' if label else ''}{target}")
+    return "\n".join(linhas)
+
+
+WA_SYSTEM_DELEGAR = """Voce e o secretario do "Bom Dia". Sua tarefa: escrever UMA mensagem de
+WhatsApp para DELEGAR esta demanda a alguem do time.
+
+Estilo: claro, organizado e completo, mas humano (nada robotico). Escreva em portugues do Brasil.
+Estruture com rotulos curtos e quebras de linha, mais ou menos assim:
+- 1 linha de abertura pedindo pra assumir a demanda;
+- *Tarefa:* o que precisa ser feito;
+- *Contexto:* detalhes que importam (projeto, quem pediu) - so se existirem;
+- *Prazo:* se houver;
+- *Passos:* liste as subtarefas pendentes (as ja feitas pode marcar como ok);
+- *Links:* cole os links/pastas, se houver;
+- 1 linha curta de fechamento.
+
+Regras:
+- Use SO as informacoes fornecidas. NUNCA invente dados, nomes, prazos ou links.
+- Se algum item nao existir, simplesmente omita o rotulo.
+- Pode usar *negrito* do WhatsApp (asteriscos) nos rotulos. Emojis com muita moderacao.
+- Responda APENAS com o texto da mensagem, sem aspas, sem comentarios antes ou depois."""
+
+WA_SYSTEM_AVISAR = """Voce e o Poohzera, secretario simpatico do "Bom Dia". Sua tarefa: escrever
+UMA mensagem de WhatsApp curta pra AVISAR quem pediu a demanda sobre o andamento (um update).
+
+Estilo: leve, pessoal e breve (3 a 5 linhas no maximo). Portugues do Brasil. Emojis discretos, ok.
+Traga: uma saudacao curta, em que pe esta a coisa (use o andamento/porcentagem das subtarefas ou o
+status), o prazo se houver, e 1 linha de proximo passo. Se houver quem pediu, pode falar direto com
+essa pessoa pelo nome.
+
+Regras:
+- Use SO as informacoes fornecidas. NUNCA invente dados, prazos ou links.
+- Nao vire uma lista longa nem cole todos os links - e so um update rapido.
+- Responda APENAS com o texto da mensagem, sem aspas, sem comentarios antes ou depois."""
+
+
+def ai_whatsapp(task, modo="avisar"):
+    if modo not in ("delegar", "avisar"):
+        modo = "avisar"
+    system = WA_SYSTEM_DELEGAR if modo == "delegar" else WA_SYSTEM_AVISAR
+    hoje = date.today().isoformat()
+    contexto = _wa_contexto(task)
+    messages = [
+        {"role": "system", "content": system + f"\nHoje e {hoje}."},
+        {"role": "user", "content": "Dados da demanda:\n" + contexto},
+    ]
+    raw = call_openai(messages, json_mode=False, temperature=0.4)
+    return (raw or "").strip()
 
 
 def list_projetos():
@@ -918,6 +1041,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             for t in tarefas:
                 t["perguntas"] = build_gaps(t, projetos)
             return self._json({"tarefas": tarefas, "projetos": projetos})
+        if parsed.path == "/api/ai/whatsapp":
+            data = self._read_json()
+            task = data.get("task") or {}
+            if not (task.get("title") or "").strip():
+                return self._json({"error": "Preciso de uma tarefa com titulo pra montar o recado."}, 400)
+            try:
+                mensagem = ai_whatsapp(task, data.get("modo", "avisar"))
+            except Exception as e:  # noqa: BLE001
+                return self._json({"error": str(e)}, 502)
+            return self._json({"mensagem": mensagem})
         return self._json({"error": "rota nao encontrada"}, 404)
 
     def do_PUT(self):
