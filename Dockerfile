@@ -12,6 +12,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# curl: usado pelo healthcheck (do container e do Coolify). Nao e dependencia
+# do app - o backend continua so com a biblioteca padrao do Python.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Codigo da aplicacao. O .dockerignore mantem fora do build o banco, config,
 # scripts de Windows (.vbs/.bat/.pyw), .git e afins.
 COPY bomdia.py index.html styles.css app.js ./
@@ -28,6 +34,6 @@ EXPOSE 9463
 
 # Healthcheck interno do container (o Coolify tambem pode usar /health).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request,os; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','9463')+'/health', timeout=3)" || exit 1
+  CMD curl -fsS http://localhost:9463/health || exit 1
 
 CMD ["python", "bomdia.py"]
