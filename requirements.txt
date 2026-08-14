@@ -1,0 +1,8 @@
+# Bom Dia - dependencias de PRODUCAO.
+#
+# O backend (bomdia.py) usa exclusivamente a biblioteca padrao do Python
+# (http.server, sqlite3, urllib, json, mimetypes...). Nao ha nada a instalar
+# para rodar na VPS/Docker. Este arquivo existe so para deixar isso explicito.
+#
+# Recursos exclusivos do modo local (icone de bandeja) estao em
+# requirements-local.txt e NAO sao necessarios no servidor.

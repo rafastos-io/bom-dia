@@ -1,0 +1,7 @@
+# Bom Dia - dependencias SO do modo LOCAL (Windows), para o icone de bandeja.
+# O servidor de producao NAO precisa disto. Instale so na sua maquina:
+#   pip install -r requirements-local.txt
+#
+# Usadas por "Bom Dia.pyw" (system tray). O app web (bomdia.py) roda sem elas.
+pystray>=0.19
+pillow>=10.0
