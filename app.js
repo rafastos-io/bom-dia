@@ -167,14 +167,23 @@ function sortTasks(list) {
 function render() {
   refreshArchivedSets();
   // nav
-  document.querySelectorAll(".nav-item[data-area]").forEach((b) =>
-    b.classList.toggle("active", b.dataset.area === AREA));
+  document.querySelectorAll(".nav-item[data-area]").forEach((b) => {
+    const selected = b.dataset.area === AREA;
+    b.classList.toggle("active", selected);
+    if (selected) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
   for (const a of Object.keys(AREA_LABEL)) {
     const n = TASKS.filter((t) => inArea(t, a) && t.status !== "concluida" && !taskHidden(t)).length;
     const badge = document.querySelector(`[data-count="${a}"]`);
     if (badge) badge.textContent = n || "";
   }
   refreshProjetosDatalist();
+
+  document.querySelectorAll("#statusFilters .chip").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.status === FILTER)));
+  document.querySelectorAll("#prioFilters .chip").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.prio === PRIO)));
 
   const isHoje = AREA === "hoje";
   el("dashboard").classList.toggle("hidden", !isHoje);
@@ -198,7 +207,11 @@ function render() {
 
   el("statusFilters").style.opacity = VIEW === "kanban" ? ".4" : "1";
   el("statusFilters").style.pointerEvents = VIEW === "kanban" ? "none" : "auto";
-  [...el("viewToggle").children].forEach((b) => b.classList.toggle("active", b.dataset.view === VIEW));
+  [...el("viewToggle").children].forEach((b) => {
+    const selected = b.dataset.view === VIEW;
+    b.classList.toggle("active", selected);
+    b.setAttribute("aria-pressed", String(selected));
+  });
 
   const board = el("board");
   board.innerHTML = "";
@@ -1518,7 +1531,11 @@ async function openConfig() {
 }
 
 // --- Overlays -------------------------------------------------------
-function openOverlay(id) { el(id).classList.remove("hidden"); injectIcons(); }
+function openOverlay(id) {
+  el(id).classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  injectIcons();
+}
 // Guarda de fluxo: fecha nada "modal" sujo sem confirmar, e integra a limpeza do draft.
 let FORM_DIRTY = false;
 let FORM_SNAPSHOT = "";
@@ -1526,6 +1543,7 @@ function closeOverlay(id) {
   if (id === "modal" && FORM_DIRTY && !confirm("Você tem alterações não salvas. Sair mesmo assim e descartar?")) return;
   if (id === "modal") clearDraft(el("taskId").value || "novo");
   el(id).classList.add("hidden");
+  if (!document.querySelector(".modal-overlay:not(.hidden)")) document.body.classList.remove("modal-open");
 }
 
 // --- Rascunho do modal de tarefa (não perde mais nada) --------------
