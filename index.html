@@ -2,9 +2,11 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#EDEBE4">
   <title>Bom Dia</title>
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231E2E52'/%3E%3Cg fill='none' stroke='%23F2C94C' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='16' cy='16' r='5'/%3E%3Cpath d='M16 4v3M16 25v3M4 16h3M25 16h3M7.5 7.5l2.1 2.1M22.4 22.4l2.1 2.1M7.5 24.5l2.1-2.1M22.4 9.6l2.1-2.1'/%3E%3C/g%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css?v=29">
   <script>
     // Aplica o tema antes de pintar (sem flash). Segue o sistema se nao houver escolha salva.
     (function () {
@@ -32,8 +34,11 @@
         <button class="nav-item" data-area="rotina"><span data-icon="repeat"></span> Rotina <span class="nav-count" data-count="rotina"></span></button>
       </nav>
       <div class="sidebar-foot">
-        <button class="nav-item subtle" id="btnTheme"><span data-icon="moon"></span> Modo noturno</button>
-        <button class="nav-item subtle" id="btnConfig"><span data-icon="gear"></span> Ajustes</button>
+        <button class="nav-item subtle" id="btnTheme" title="Alternar tema"><span data-icon="moon"></span> Modo noturno</button>
+        <button class="nav-item subtle" id="btnConfig" title="Ajustes"><span data-icon="gear"></span> Ajustes</button>
+        <form action="/logout" method="post" class="logout-form">
+          <button class="nav-item subtle" type="submit" title="Sair"><span data-icon="logout"></span> Sair</button>
+        </form>
       </div>
     </aside>
 
@@ -194,6 +199,14 @@
                 <input type="date" id="due_date">
               </div>
             </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="status">
+                <option value="aberta">Aberta</option>
+                <option value="andamento">Em andamento</option>
+                <option value="concluida">Concluída</option>
+              </select>
+            </div>
             <div class="field hidden" id="recorField">
               <label>Recorrência <span class="opt">(repete sozinha; o check zera na virada)</span></label>
               <select id="recorrencia">
@@ -253,6 +266,7 @@
           <button type="button" id="btnDelete" class="btn-danger hidden">Excluir</button>
           <button type="button" id="btnWhats" class="btn-soft hidden"><span data-icon="whatsapp"></span> Recado</button>
           <div class="spacer"></div>
+          <span class="dirty-flag" id="dirtyFlag" hidden>• alterações não salvas</span>
           <button type="button" class="btn-ghost" data-close="modal">Cancelar</button>
           <button type="submit" class="btn-primary">Salvar</button>
         </div>
@@ -328,12 +342,7 @@
           <label>Envolvidos <span class="opt">(pessoas fixas do projeto)</span></label>
           <input type="text" id="projPeople" placeholder="Ex: Adriano, Rodrigo, equipe de design">
         </div>
-        <div class="field">
-          <label>Links e pastas do projeto</label>
-          <p class="hint">Links que vivem no projeto (Drive, Canva, pasta do PC) — sempre à mão.</p>
-          <div id="projLinksList"></div>
-          <button type="button" id="btnAddProjLink" class="btn-ghost"><span data-icon="plus"></span> Link ou pasta</button>
-        </div>
+        <p class="hint">Os links e pastas ficam na aba <strong>Links</strong> do projeto, organizados por categoria.</p>
         <div class="modal-foot">
           <button type="button" id="btnProjDelete" class="btn-danger hidden">Excluir</button>
           <div class="spacer"></div>
@@ -345,6 +354,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=26"></script>
+  <script src="app.js?v=28"></script>
 </body>
 </html>

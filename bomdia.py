@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
 """
 BOM DIA - organizador pessoal de demandas.
-Roda 100% local: servidor Python + banco SQLite no proprio computador.
-Sem dependencias externas (so biblioteca padrao).
+Backend em Python puro (biblioteca padrao) + SQLite.
+
+Roda em dois modos, decididos por variaveis de ambiente:
+  - local     (default): Windows/uso pessoal. Banco na pasta do projeto,
+              bind em 127.0.0.1, abre o navegador sozinho.
+  - production (VPS/Docker/Coolify): banco em DATA_DIR (volume persistente),
+              bind em 0.0.0.0, NAO abre navegador, recursos de desktop
+              (abrir pasta no Explorer) ficam desativados com aviso amigavel.
+
+Variaveis de ambiente reconhecidas:
+  APP_ENV        local | production        (default: local)
+  HOST           IP de bind               (default: 127.0.0.1 local / 0.0.0.0 prod)
+  PORT           porta HTTP               (default: 9463)
+  DATA_DIR       pasta de dados/banco     (default: pasta do projeto)
+  OPENAI_API_KEY chave da OpenAI          (prioridade sobre config.json; nunca gravada em disco)
+  OPENAI_MODEL   modelo do chat           (default: gpt-4.1-mini)
+  APP_NAME       nome exibido nos logs    (default: Bom Dia)
 """
 import http.server
 import socketserver
@@ -10,35 +25,134 @@ import sqlite3
 import json
 import os
 import sys
+import mimetypes
 import webbrowser
+import hashlib
+import hmac
+import secrets
+import time
 import urllib.request
 import urllib.error
-from urllib.parse import urlparse
+from http.cookies import SimpleCookie
+from urllib.parse import parse_qs, urlparse, unquote
 from datetime import datetime, date
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "bomdia.db")
-CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-PORT = 9463
+
+
+def _env(name, default=""):
+    return (os.environ.get(name) or "").strip() or default
+
+
+# ----------------------------------------------------------------------------
+# Ambiente (local x producao) e caminhos
+# ----------------------------------------------------------------------------
+APP_ENV = _env("APP_ENV", "local").lower()
+IS_LOCAL = APP_ENV != "production"          # producao e o unico modo "nao-local"
+APP_NAME = _env("APP_NAME", "Bom Dia")
+
+# Barreira temporaria de acesso. A senha padrao nao fica em texto puro no
+# repositorio; so o SHA-256 e comparado. AUTH_PASSWORD permite troca imediata
+# pelo painel de ambiente do Coolify, sem alterar codigo.
+AUTH_USER = _env("AUTH_USER", "Rafastos")
+AUTH_PASSWORD = _env("AUTH_PASSWORD")
+AUTH_PASSWORD_SHA256 = _env(
+    "AUTH_PASSWORD_SHA256",
+    "51864e438afd0b48904b9c95892c5f6ac6646ee3670ddee63d81db991982034f",
+).lower()
+AUTH_SECRET = _env("AUTH_SECRET") or secrets.token_hex(32)
+AUTH_COOKIE = "bomdia_session"
+AUTH_TTL_SECONDS = 60 * 60 * 24 * 7
+
+# DATA_DIR: onde vivem banco e config. Default = pasta do projeto (modo local
+# intocado). Em producao, aponte para o volume persistente (ex.: /data).
+DATA_DIR = _env("DATA_DIR") or BASE_DIR
+DB_PATH = os.path.join(DATA_DIR, "bomdia.db")
+CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
+
+HOST = _env("HOST") or ("127.0.0.1" if IS_LOCAL else "0.0.0.0")
+try:
+    PORT = int(_env("PORT", "9463"))
+except ValueError:
+    PORT = 9463
 
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-DEFAULT_MODEL = "gpt-4.1-mini"
+DEFAULT_MODEL = _env("OPENAI_MODEL", "gpt-4.1-mini")
 TIPOS = ("tarefa", "ideia", "rotina")
 RECORRENCIAS = ("diaria", "semanal", "mensal")
 IDEA_TARGET_TIPOS = ("projeto", "rotina", "tarefa")
+
+# Arquivos que o servidor PODE entregar ao navegador. Tudo o que nao estiver
+# aqui (codigo .py, banco .db, config.json, .vbs/.bat, etc.) e negado.
+PUBLIC_FILES = {"index.html", "login.html", "styles.css", "app.js", "favicon.ico", "robots.txt"}
+PUBLIC_DIRS = ("assets",)
+
+
+def log(msg):
+    """Log simples em stdout (aparece no Coolify/Docker logs). Nunca logar segredos."""
+    print(f"[bomdia] {msg}", flush=True)
+
+
+def _auth_password_digest():
+    """Digest da credencial ativa, usado tanto na validacao quanto na sessao."""
+    if AUTH_PASSWORD:
+        return hashlib.sha256(AUTH_PASSWORD.encode("utf-8")).hexdigest()
+    return AUTH_PASSWORD_SHA256
+
+
+def _valid_credentials(username, password):
+    username_ok = hmac.compare_digest(username, AUTH_USER)
+    supplied = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    password_ok = hmac.compare_digest(supplied, _auth_password_digest())
+    return username_ok and password_ok
+
+
+def _new_session_token():
+    expires = int(time.time()) + AUTH_TTL_SECONDS
+    payload = f"{AUTH_USER}|{expires}|{_auth_password_digest()}"
+    signature = hmac.new(
+        AUTH_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return f"{expires}.{signature}"
+
+
+def _valid_session_token(token):
+    try:
+        expires_raw, supplied_signature = token.split(".", 1)
+        expires = int(expires_raw)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    if expires < int(time.time()):
+        return False
+    payload = f"{AUTH_USER}|{expires}|{_auth_password_digest()}"
+    expected = hmac.new(
+        AUTH_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(supplied_signature, expected)
 
 
 # ----------------------------------------------------------------------------
 # Banco de dados
 # ----------------------------------------------------------------------------
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    # timeout: espera ate 10s se outro request estiver escrevendo (ThreadingServer).
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 10000")
     return conn
 
 
 def init_db():
+    # Garante a pasta de dados (volume persistente em producao). Idempotente:
+    # nunca apaga nada; CREATE TABLE IF NOT EXISTS + migracoes incrementais.
+    os.makedirs(DATA_DIR, exist_ok=True)
     conn = get_db()
+    # WAL: melhor concorrencia leitura/escrita para o ThreadingServer.
+    try:
+        conn.execute("PRAGMA journal_mode = WAL")
+    except sqlite3.Error as e:
+        log(f"aviso: nao consegui ativar WAL ({e})")
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS tasks (
@@ -84,6 +198,7 @@ def init_db():
             kind       TEXT NOT NULL,
             label      TEXT,
             target     TEXT NOT NULL,
+            grupo      TEXT DEFAULT '',        -- categoria/pasta (ex.: Leads, Visitas)
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS project_notes (
@@ -127,6 +242,11 @@ def init_db():
     if "feito_em" not in cols:
         conn.execute("ALTER TABLE tasks ADD COLUMN feito_em TEXT DEFAULT ''")
         conn.execute("UPDATE tasks SET feito_em = '' WHERE feito_em IS NULL")
+    # Categoria/pasta nos links do projeto (agrupador visual na aba Links)
+    plcols = [r["name"] for r in conn.execute("PRAGMA table_info(project_links)")]
+    if "grupo" not in plcols:
+        conn.execute("ALTER TABLE project_links ADD COLUMN grupo TEXT DEFAULT ''")
+        conn.execute("UPDATE project_links SET grupo = '' WHERE grupo IS NULL")
     # Projetos viram entidade: semeia a tabela projects a partir dos nomes ja usados
     existentes = {r["name"] for r in conn.execute("SELECT name FROM projects")}
     for r in conn.execute("SELECT DISTINCT projeto FROM tasks WHERE TRIM(COALESCE(projeto,'')) <> ''"):
@@ -153,27 +273,45 @@ def load_config():
             cfg.update(data)
     except (FileNotFoundError, json.JSONDecodeError):
         pass
-    # variavel de ambiente tem prioridade se estiver setada
+    # variaveis de ambiente tem prioridade (producao): chave e modelo.
     env_key = os.environ.get("OPENAI_API_KEY")
     if env_key:
-        cfg["openai_api_key"] = env_key
+        cfg["openai_api_key"] = env_key.strip()
+    env_model = os.environ.get("OPENAI_MODEL")
+    if env_model and env_model.strip():
+        cfg["model"] = env_model.strip()
     return cfg
 
 
 def save_config(data):
-    cfg = load_config()
+    # Le direto do arquivo (nao via load_config) para nao arrastar a chave de
+    # ambiente para dentro do que sera gravado em disco.
+    cfg = {"name": "", "openai_api_key": "", "model": DEFAULT_MODEL}
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            disk = json.load(f)
+            if "openai_api_key" not in disk and "nvidia_api_key" in disk:
+                disk["openai_api_key"] = disk.pop("nvidia_api_key")
+            cfg.update({k: disk[k] for k in ("name", "openai_api_key", "model") if k in disk})
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
     # aceita o campo novo e, por compat, o antigo vindo do front
     if "nvidia_api_key" in data and "openai_api_key" not in data:
         data["openai_api_key"] = data["nvidia_api_key"]
     for k in ("name", "openai_api_key", "model"):
         if k in data and data[k] is not None:
             cfg[k] = data[k]
-    # nao persiste a chave vinda de env var por engano
+    # Se a chave veio do ambiente, ela manda em runtime e NUNCA e gravada em disco.
+    key_to_save = "" if os.environ.get("OPENAI_API_KEY") else cfg.get("openai_api_key", "")
     to_save = {"name": cfg.get("name", ""),
-               "openai_api_key": cfg.get("openai_api_key", ""),
+               "openai_api_key": key_to_save,
                "model": cfg.get("model", DEFAULT_MODEL)}
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(to_save, f, ensure_ascii=False, indent=2)
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(to_save, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        log(f"erro ao gravar config: {e}")
+        raise
 
 
 def api_key_ok(key):
@@ -444,7 +582,8 @@ def delete_task(task_id):
 # ----------------------------------------------------------------------------
 def _proj_links(conn, pid):
     return [dict(r) for r in conn.execute(
-        "SELECT id, kind, label, target FROM project_links WHERE project_id = ? ORDER BY id", (pid,))]
+        "SELECT id, kind, label, target, COALESCE(grupo,'') AS grupo "
+        "FROM project_links WHERE project_id = ? ORDER BY id", (pid,))]
 
 
 def _ensure_project(conn, name):
@@ -465,8 +604,9 @@ def _replace_project_links(conn, pid, links):
         if not target:
             continue
         conn.execute(
-            "INSERT INTO project_links (project_id, kind, label, target) VALUES (?,?,?,?)",
-            (pid, l.get("kind", "web"), (l.get("label") or "").strip(), target))
+            "INSERT INTO project_links (project_id, kind, label, target, grupo) VALUES (?,?,?,?,?)",
+            (pid, l.get("kind", "web"), (l.get("label") or "").strip(), target,
+             (l.get("grupo") or "").strip()))
 
 
 def list_projects():
@@ -601,7 +741,14 @@ def delete_note(note_id):
 
 
 def open_folder(path):
-    """Abre uma pasta (ou arquivo) local no Explorer do Windows."""
+    """Abre uma pasta (ou arquivo) local no Explorer do Windows.
+
+    Recurso exclusivo do modo LOCAL: na VPS nao existe desktop nem acesso ao
+    computador do usuario, entao respondemos com um aviso amigavel em vez de
+    tentar (e falhar) abrir algo no servidor."""
+    if not IS_LOCAL:
+        return False, ("Abrir pasta local so funciona na versao instalada no seu "
+                       "computador. Na versao hospedada, use links da web.")
     path = os.path.normpath(path.strip().strip('"'))
     if not os.path.exists(path):
         return False, f"Caminho nao encontrado: {path}"
@@ -953,17 +1100,67 @@ def build_gaps(task, projetos):
 # ----------------------------------------------------------------------------
 # Servidor HTTP
 # ----------------------------------------------------------------------------
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=BASE_DIR, **kwargs)
+class Handler(http.server.BaseHTTPRequestHandler):
+    """Handler proprio (nao herda SimpleHTTPRequestHandler): entregamos SO os
+    arquivos da allowlist publica, nunca o diretorio inteiro. Isso impede que
+    codigo (.py), banco (.db), config.json ou scripts (.vbs/.bat) vazem."""
 
-    def log_message(self, *args):
-        pass  # silencia o log padrao
+    server_version = "BomDia"
+
+    def log_message(self, fmt, *args):
+        # Log enxuto so para erros de servidor (5xx); 2xx/4xx ficam silenciosos.
+        return
 
     def end_headers(self):
-        # App local de dev/uso pessoal: nunca cachear, pra edicoes aparecerem no refresh.
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
         super().end_headers()
+
+    def _redirect(self, location, status=303):
+        self.send_response(status)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _read_form(self):
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 16_384:
+            return {}
+        raw = self.rfile.read(length).decode("utf-8", errors="replace")
+        return {key: values[-1] for key, values in parse_qs(raw).items() if values}
+
+    def _is_authenticated(self):
+        raw_cookie = self.headers.get("Cookie", "")
+        if not raw_cookie:
+            return False
+        try:
+            cookies = SimpleCookie()
+            cookies.load(raw_cookie)
+            morsel = cookies.get(AUTH_COOKIE)
+            return bool(morsel and _valid_session_token(morsel.value))
+        except Exception:  # cookie malformado simplesmente nao autentica
+            return False
+
+    def _serve_login(self, error=False):
+        path = os.path.join(BASE_DIR, "login.html")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                page = f.read()
+        except OSError:
+            return self._json({"error": "pagina de login indisponivel"}, 500)
+        message = (
+            '<p class="login-error" role="alert">Usuário ou senha incorretos.</p>'
+            if error else ""
+        )
+        body = page.replace("{{ERROR}}", message).encode("utf-8")
+        self.send_response(401 if error else 200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def _json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -971,39 +1168,155 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def _read_json(self):
-        length = int(self.headers.get("Content-Length", 0))
-        if length == 0:
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0:
             return {}
-        return json.loads(self.rfile.read(length).decode("utf-8"))
+        raw = self.rfile.read(length).decode("utf-8")
+        data = json.loads(raw) if raw.strip() else {}
+        if not isinstance(data, dict):
+            raise ValueError("JSON invalido (esperado objeto).")
+        return data
 
+    # -- Static (allowlist) --------------------------------------------------
+    def _resolve_public(self, url_path):
+        """Mapeia a URL para um arquivo publico seguro ou retorna None.
+        Bloqueia path traversal e qualquer arquivo fora da allowlist."""
+        rel = unquote(url_path).lstrip("/")
+        if rel in ("", "/"):
+            rel = "index.html"
+        # normaliza e rejeita tentativas de subir de diretorio
+        rel = rel.replace("\\", "/")
+        if ".." in rel.split("/"):
+            return None
+        top = rel.split("/", 1)[0]
+        if rel in PUBLIC_FILES or top in PUBLIC_DIRS:
+            full = os.path.normpath(os.path.join(BASE_DIR, rel))
+            # garante que o caminho resolvido continua dentro de BASE_DIR
+            if os.path.commonpath([full, BASE_DIR]) != BASE_DIR:
+                return None
+            if os.path.isfile(full):
+                return full
+        return None
+
+    def _serve_static(self, url_path):
+        full = self._resolve_public(url_path)
+        if not full:
+            return self._json({"error": "nao encontrado"}, 404)
+        ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
+        if full.lower().endswith(".woff2"):
+            ctype = "font/woff2"
+        try:
+            with open(full, "rb") as f:
+                data = f.read()
+        except OSError:
+            return self._json({"error": "nao encontrado"}, 404)
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(data)
+
+    # -- Dispatch com tratamento de erro central -----------------------------
     def do_GET(self):
+        self._dispatch(self._route_get)
+
+    def do_HEAD(self):
+        self._dispatch(self._route_get)
+
+    def do_POST(self):
+        self._dispatch(self._route_post)
+
+    def do_PUT(self):
+        self._dispatch(self._route_put)
+
+    def do_DELETE(self):
+        self._dispatch(self._route_delete)
+
+    def _dispatch(self, route):
+        """Um erro em um request nunca derruba o servidor: vira 400/500 JSON."""
+        try:
+            path = urlparse(self.path).path
+            public = path in (
+                "/health", "/api/health", "/login", "/assets/InterVariable.woff2"
+            )
+            if not public and not self._is_authenticated():
+                if path.startswith("/api/"):
+                    return self._json({"error": "autenticacao necessaria"}, 401)
+                return self._redirect("/login")
+            route()
+        except (ValueError, json.JSONDecodeError) as e:
+            # IDs invalidos, JSON malformado, etc. -> erro do cliente.
+            self._json({"error": f"requisicao invalida: {e}"}, 400)
+        except BrokenPipeError:
+            pass  # cliente desconectou; nada a fazer
+        except Exception as e:  # noqa: BLE001
+            log(f"erro interno em {self.command} {self.path}: {type(e).__name__}: {e}")
+            try:
+                self._json({"error": "erro interno do servidor"}, 500)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _route_get(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/tasks":
+        path = parsed.path
+        if path in ("/health", "/api/health"):
+            return self._json({"status": "ok"})
+        if path == "/login":
+            if self._is_authenticated():
+                return self._redirect("/")
+            return self._serve_login()
+        if path == "/api/tasks":
             return self._json(list_tasks())
-        if parsed.path == "/api/projects":
+        if path == "/api/projects":
             return self._json(list_projects())
-        gparts = parsed.path.strip("/").split("/")
+        gparts = path.strip("/").split("/")
         if len(gparts) == 4 and gparts[0] == "api" and gparts[1] == "projects" and gparts[3] == "notes":
             return self._json(list_notes(int(gparts[2])))
-        if parsed.path == "/api/ai/status":
+        if path == "/api/ai/status":
             cfg = load_config()
             return self._json({
                 "configured": api_key_ok(cfg.get("openai_api_key", "")),
                 "model": cfg.get("model", DEFAULT_MODEL),
                 "name": cfg.get("name", ""),
+                "env": APP_ENV,
+                "local": IS_LOCAL,
             })
-        if parsed.path == "/" or parsed.path == "":
-            self.path = "/index.html"
-        return super().do_GET()
+        if path.startswith("/api/"):
+            return self._json({"error": "rota nao encontrada"}, 404)
+        return self._serve_static(path)
 
-    def do_POST(self):
+    def _route_post(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/login":
+            form = self._read_form()
+            if not _valid_credentials(form.get("username", ""), form.get("password", "")):
+                return self._serve_login(error=True)
+            self.send_response(303)
+            cookie = f"{AUTH_COOKIE}={_new_session_token()}; Path=/; HttpOnly; SameSite=Lax; Max-Age={AUTH_TTL_SECONDS}"
+            if not IS_LOCAL:
+                cookie += "; Secure"
+            self.send_header("Set-Cookie", cookie)
+            self.send_header("Location", "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if parsed.path == "/logout":
+            self.send_response(303)
+            cookie = f"{AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+            if not IS_LOCAL:
+                cookie += "; Secure"
+            self.send_header("Set-Cookie", cookie)
+            self.send_header("Location", "/login")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if parsed.path == "/api/tasks":
-            data = self._read_json()
-            tid = create_task(data)
+            tid = create_task(self._read_json())
             return self._json({"id": tid}, 201)
         if parsed.path == "/api/projects":
             try:
@@ -1036,6 +1349,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try:
                 tarefas = ai_parse(text)
             except Exception as e:  # noqa: BLE001
+                log(f"erro OpenAI (parse): {e}")
                 return self._json({"error": str(e)}, 502)
             projetos = list_projetos()
             for t in tarefas:
@@ -1049,13 +1363,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try:
                 mensagem = ai_whatsapp(task, data.get("modo", "avisar"))
             except Exception as e:  # noqa: BLE001
+                log(f"erro OpenAI (whatsapp): {e}")
                 return self._json({"error": str(e)}, 502)
             return self._json({"mensagem": mensagem})
         return self._json({"error": "rota nao encontrada"}, 404)
 
-    def do_PUT(self):
-        parsed = urlparse(self.path)
-        parts = parsed.path.strip("/").split("/")
+    def _route_put(self):
+        parts = urlparse(self.path).path.strip("/").split("/")
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "tasks":
             update_task(int(parts[2]), self._read_json())
             return self._json({"ok": True})
@@ -1070,9 +1384,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._json({"ok": True})
         return self._json({"error": "rota nao encontrada"}, 404)
 
-    def do_DELETE(self):
-        parsed = urlparse(self.path)
-        parts = parsed.path.strip("/").split("/")
+    def _route_delete(self):
+        parts = urlparse(self.path).path.strip("/").split("/")
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "tasks":
             delete_task(int(parts[2]))
             return self._json({"ok": True})
@@ -1087,36 +1400,41 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 class ThreadingServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
+    allow_reuse_address = True
 
 
 URL = f"http://localhost:{PORT}"
 
 
-def create_server():
-    """Cria o servidor (sem iniciar). Usado pelo app da bandeja."""
+def create_server(host=None):
+    """Cria o servidor (sem iniciar). Usado pelo app da bandeja (modo local)."""
     init_db()
-    return ThreadingServer(("127.0.0.1", PORT), Handler)
+    return ThreadingServer((host or HOST, PORT), Handler)
 
 
 def main():
     init_db()
-    url = f"http://localhost:{PORT}"
-    print("=" * 48)
-    print("  BOM DIA  -  organizador pessoal")
-    print("=" * 48)
-    print(f"  Rodando em: {url}")
-    print(f"  Banco:      {DB_PATH}")
-    print("  Para fechar: feche esta janela (ou Ctrl+C)")
-    print("=" * 48)
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
-    with ThreadingServer(("127.0.0.1", PORT), Handler) as httpd:
+    log(f"{APP_NAME} iniciando")
+    log(f"ambiente: {APP_ENV} (local={IS_LOCAL})")
+    log(f"escutando em: http://{HOST}:{PORT}")
+    log(f"banco:  {DB_PATH}")
+    log(f"config: {CONFIG_PATH}")
+    log(f"login temporario ativo para: {AUTH_USER}")
+    if not os.environ.get("AUTH_SECRET"):
+        log("aviso: AUTH_SECRET nao definido; sessoes serao encerradas no proximo restart")
+    cfg = load_config()
+    log(f"OpenAI configurada: {api_key_ok(cfg.get('openai_api_key', ''))} | modelo: {cfg.get('model', DEFAULT_MODEL)}")
+    # Navegador so abre no modo local (na VPS nao ha desktop).
+    if IS_LOCAL:
+        try:
+            webbrowser.open(f"http://localhost:{PORT}")
+        except Exception:  # noqa: BLE001
+            pass
+    with ThreadingServer((HOST, PORT), Handler) as httpd:
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
-            print("\nAte amanha. Bom dia!")
+            log("encerrando. Ate amanha, bom dia!")
 
 
 if __name__ == "__main__":

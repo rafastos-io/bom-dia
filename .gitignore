@@ -1,10 +1,16 @@
 # Banco local com dados pessoais - nao versionar
+bomdia*.db
 bomdia.db
 bomdia.db-journal
+bomdia.db-wal
+bomdia.db-shm
 bomdia.db.bak-*
 
 # Chave da API / configuracao pessoal - NUNCA versionar
 config.json
+.env
+.env.*
+!.env.example
 
 # Cache Python
 __pycache__/
@@ -12,3 +18,7 @@ __pycache__/
 
 # Logs
 *.log
+
+# Lixo do Windows
+desktop.ini
+Thumbs.db

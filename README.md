@@ -48,6 +48,10 @@ pip install pystray pillow
 
 O app sobe em `http://localhost:9463`. O banco fica em `bomdia.db` (na mesma pasta).
 
+Na VPS, o acesso passa por um login temporário validado pelo servidor. Configure
+`AUTH_USER`, `AUTH_PASSWORD` e `AUTH_SECRET` nas variáveis de ambiente; consulte
+`DEPLOY.md` para o passo a passo do Coolify.
+
 ## Backup
 
 É só copiar o arquivo `bomdia.db`. Ele guarda todas as suas demandas.
