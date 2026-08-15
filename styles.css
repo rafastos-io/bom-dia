@@ -8,29 +8,35 @@
 }
 
 :root {
-  --bg: #F3F1EC;
+  /* Neutros frios estilo Apple (System Gray). Fundo #F5F5F7 é a assinatura clara da Apple. */
+  --bg: #F5F5F7;
   --surface: #FFFFFF;
-  --surface-2: #F8F6F2;
-  --sidebar-bg: #EDEBE4;
-  --ink: #202027;
-  --ink-soft: #55555E;
-  --muted: #74747D;
-  --line: #E3E0D8;
-  --line-soft: #EBE8E1;
-  --blue: #1E2E52;
-  --blue-600: #29406E;
-  --blue-soft: #EEF1F7;
-  --yellow: #F2C94C;
-  --yellow-soft: #FCF3D6;
-  --alta: #C25B54;
+  --surface-2: #F0F0F3;
+  --sidebar-bg: #F5F5F7;
+  /* Materiais translúcidos (vidro) — chrome flutuante com conteúdo passando por baixo */
+  --glass: rgba(250, 250, 252, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.8);
+  --glass-line: rgba(0, 0, 0, 0.06);
+  --ink: #1D1D1F;      /* label primário Apple (quase-preto) */
+  --ink-soft: #48484A;
+  --muted: #86868B;    /* cinza de texto secundário assinatura Apple */
+  --line: #D2D2D7;     /* separador Apple */
+  --line-soft: #E8E8ED;
+  /* Azul-marinho da marca mantido, porém afinado e mais coerente com os neutros frios */
+  --blue: #1E3050;
+  --blue-600: #2C4470;
+  --blue-soft: #EDF0F6;
+  --yellow: #F5C542;
+  --yellow-soft: #FBF1D3;
+  --alta: #C0554E;
   --alta-soft: #F7E7E5;
-  --media: #C99A2E;
-  --media-soft: #F8EFD6;
-  --baixa: #5B8C6E;
-  --baixa-soft: #E5F0E9;
-  /* Raios: ação != filtro. Botões 10-12px, superfícies 16-20px, chips/tags 999px */
-  --radius: 16px;
-  --radius-sm: 10px;
+  --media: #C4922B;
+  --media-soft: #F7EDD3;
+  --baixa: #4E8C6C;
+  --baixa-soft: #E3F0E8;
+  /* Raios estilo Apple: cantos mais generosos e contínuos. Superfícies 18-22, botões 12, pílulas 999 */
+  --radius: 18px;
+  --radius-sm: 11px;
   --radius-btn: 12px;
   /* Sombras em 3 níveis: plano (borda só), elevado (azul discreto), profundo (modal/Poohzera) */
   --shadow-sm:
@@ -45,48 +51,54 @@
   --hover-border: var(--hover-border);
   --postit-border: var(--postit-border);
   --link-hover: #DDE5F2;
-  --overlay: rgba(30,46,82,.34);
+  --overlay: rgba(0, 0, 0, .28);
   --pooh-warm: #FDFBF6;
   --prio1-ink: #9A7B14;
-  /* Easings — do Open Props (curados) */
-  --ease: cubic-bezier(.2,.7,.2,1);
-  --ease-out-3: cubic-bezier(0, 0, .3, 1);
+  /* Molas de movimento estilo Apple: default crítico (sem overshoot) + mola com leve bounce
+     só para interações com momento (flick, arrasto, sheet). */
+  --ease: cubic-bezier(.32, .72, 0, 1);       /* saída suave, "settle" limpo */
+  --ease-out-3: cubic-bezier(.16, 1, .3, 1);   /* emphasized decelerate */
   --ease-in-out-3: cubic-bezier(.45, 0, .3, 1);
-  --ease-spring: cubic-bezier(.2, .9, .3, 1.35);
-  /* Sombras estilo Open Props: camadas + cor/força em HSL (viram no dark só trocando 2 vars) */
-  --shadow-color: 220 45% 22%;
+  --ease-spring: cubic-bezier(.34, 1.56, .48, 1); /* overshoot sutil p/ momento */
+  /* Sombras Apple: difusas, neutras, baixa opacidade (não azuladas). */
+  --shadow-color: 220 8% 20%;
   --shadow-strength: 1%;
   color-scheme: light;
-  font-family: "InterVariable", Inter, "Segoe UI Variable", "Segoe UI", -apple-system, system-ui, sans-serif;
+  /* Lidera com a SF do sistema (iPhone/Mac usam SF Pro nativa); Inter cobre Windows/VPS. */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "InterVariable", Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
 
 /* ============ MODO NOTURNO (charcoal quente; segue o sistema por padrão,
    e o toggle força via [data-theme]) ============ */
 :root[data-theme="dark"] {
-  --bg: #16171B;
-  --surface: #26272E;
-  --surface-2: #1E1F25;
-  --sidebar-bg: #121317;
-  --ink: #ECEAE3;
-  --ink-soft: #B2B0AA;
-  --muted: #83828B;
-  --line: #34353E;
-  --line-soft: #2A2B33;
-  --blue: #6486CE;
-  --blue-600: #7B9AD9;
-  --blue-soft: #262F44;
-  --yellow: #F2C94C;
+  /* Escala de cinza escura fria da Apple (System Gray Dark): base quase-preta, camadas elevadas. */
+  --bg: #000000;
+  --surface: #1C1C1E;
+  --surface-2: #2C2C2E;
+  --sidebar-bg: #0A0A0B;
+  --glass: rgba(30, 30, 32, 0.72);
+  --glass-strong: rgba(40, 40, 43, 0.82);
+  --glass-line: rgba(255, 255, 255, 0.08);
+  --ink: #F5F5F7;
+  --ink-soft: #AEAEB2;
+  --muted: #8E8E93;    /* secondary label dark Apple */
+  --line: #38383A;     /* separator dark Apple */
+  --line-soft: #2A2A2C;
+  --blue: #6E97DE;
+  --blue-600: #86A9E6;
+  --blue-soft: #232D42;
+  --yellow: #F5C542;
   --yellow-soft: #332E1D;
   --alta: #E08A83;   --alta-soft: #3B2523;
   --media: #E0B24B;  --media-soft: #37311E;
   --baixa: #86C29E;  --baixa-soft: #213021;
-  --shadow-color: 220 50% 3%;
-  --shadow-strength: 22%;
-  --hover-border: #454650;
+  --shadow-color: 0 0% 0%;
+  --shadow-strength: 26%;
+  --hover-border: #48484A;
   --postit-border: #4A4326;
   --link-hover: #2E3648;
-  --overlay: rgba(0,0,0,.62);
-  --pooh-warm: #272229;
+  --overlay: rgba(0,0,0,.6);
+  --pooh-warm: #1C1C1E;
   --prio1-ink: #D9BE6A;
   color-scheme: dark;
 }
@@ -113,8 +125,10 @@ svg { display: block; }
 
 /* Sidebar ------------------------------------------------------------- */
 .sidebar {
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--line-soft);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border-right: 1px solid var(--glass-line);
   padding: 22px 16px;
   display: flex;
   flex-direction: column;
@@ -142,12 +156,9 @@ svg { display: block; }
 }
 .nav-item svg { width: 19px; height: 19px; opacity: .9; }
 .nav-item { position: relative; }
-.nav-item:hover { background: rgba(30,46,82,.05); color: var(--ink); }
+.nav-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.nav-item:active { transform: scale(.98); }
 .nav-item.active { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
-.nav-item.active::before {
-  content: ""; position: absolute; left: -16px; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--blue);
-}
 .nav-count { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 600; }
 .nav-item.active .nav-count { color: var(--blue); }
 .sidebar-foot { margin-top: auto; }
@@ -161,8 +172,8 @@ svg { display: block; }
 
 /* Dashboard ----------------------------------------------------------- */
 .dashboard { margin-bottom: 34px; animation: rise .22s var(--ease); }
-.greeting { font-size: 30px; font-weight: 700; letter-spacing: -.6px; }
-.dashboard .greeting { font-size: 36px; line-height: 42px; letter-spacing: -1px; }
+.greeting { font-size: 30px; font-weight: 700; letter-spacing: -.022em; line-height: 1.12; font-optical-sizing: auto; }
+.dashboard .greeting { font-size: 36px; line-height: 1.08; letter-spacing: -.028em; }
 .subtitle { color: var(--ink-soft); margin-top: 7px; font-size: 15px; }
 
 /* CTA da Poohzera na Home (mesma ação do assistente, com cara de card) */
@@ -231,19 +242,21 @@ svg { display: block; }
 .btn-hero {
   background: var(--blue); color: #fff;
   padding: 13px 22px; font-size: 15px;
-  box-shadow: 0 6px 18px rgba(30,46,82,.22);
+  box-shadow: 0 4px 14px -4px hsl(var(--shadow-color) / 22%);
 }
-.btn-hero:hover { background: var(--blue-600); transform: translateY(-1px); box-shadow: 0 10px 24px rgba(30,46,82,.28); }
-.btn-hero:active { transform: translateY(0) scale(.98); }
+.btn-hero:hover { background: var(--blue-600); transform: translateY(-1px); box-shadow: 0 8px 22px -6px hsl(var(--shadow-color) / 26%); }
+.btn-hero:active { transform: translateY(0) scale(.97); }
 .btn-hero .icon-accent, .btn-hero span[data-icon] { color: var(--yellow); }
 .btn-primary { background: var(--blue); color: #fff; padding: 11px 20px; }
 .btn-primary:hover { background: var(--blue-600); }
-.btn-primary:active { transform: scale(.98); }
+.btn-primary:active { transform: scale(.97); }
 .btn-soft {
   background: var(--surface); color: var(--ink); border-color: var(--line);
   padding: 11px 18px; box-shadow: var(--shadow-sm);
 }
 .btn-soft:hover { background: var(--surface-2); transform: translateY(-1px); }
+.btn-soft:active { transform: scale(.97); }
+.btn-ghost:active, .btn-danger:active { transform: scale(.97); }
 .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink-soft); padding: 9px 16px; }
 .btn-ghost:hover { background: var(--surface-2); }
 .btn-danger { background: transparent; border-color: var(--alta-soft); color: var(--alta); padding: 9px 16px; }
@@ -564,15 +577,16 @@ svg { display: block; }
 /* Modais -------------------------------------------------------------- */
 .modal-overlay {
   position: fixed; inset: 0; background: var(--overlay);
-  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(10px) saturate(120%);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 44px 16px; overflow-y: auto; z-index: 50;
-  animation: fade .2s var(--ease);
+  animation: fade .25s var(--ease);
 }
 .modal {
-  background: var(--surface); border: 1px solid var(--line-soft); border-radius: 20px; width: 100%; max-width: 560px;
+  background: var(--surface); border: 1px solid var(--glass-line); border-radius: 24px; width: 100%; max-width: 560px;
   padding: 24px; box-shadow: var(--shadow-deep);
-  animation: pop .24s var(--ease);
+  animation: materialize .32s var(--ease-out-3);
 }
 .modal-assistant { max-width: 600px; background: var(--pooh-warm); }
 .modal-task { max-width: min(1080px, 94vw); min-width: 0; display: flex; flex-direction: column; max-height: calc(100vh - 96px); }
@@ -736,8 +750,24 @@ svg { display: block; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(6px); } to { opacity: 1; transform: none; } }
+/* Materializa como um material real chegando: escala + blur juntos, não só opacidade */
+@keyframes materialize {
+  from { opacity: 0; transform: scale(.94) translateY(8px); filter: blur(6px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Menos transparência: vidro vira sólido, sem blur (regra de acessibilidade Apple). */
+@media (prefers-reduced-transparency: reduce) {
+  .sidebar { background: var(--sidebar-bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .modal-overlay { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+/* Mais contraste: bordas definidas e superfícies quase sólidas. */
+@media (prefers-contrast: more) {
+  :root { --line: #A0A0A8; --muted: #55555C; }
+  .sidebar { background: var(--sidebar-bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
 
 .hidden { display: none !important; }
 
