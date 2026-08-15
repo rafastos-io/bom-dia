@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
   <title>Bom Dia</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231E2E52'/%3E%3Cg fill='none' stroke='%23F2C94C' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='16' cy='16' r='5'/%3E%3Cpath d='M16 4v3M16 25v3M4 16h3M25 16h3M7.5 7.5l2.1 2.1M22.4 22.4l2.1 2.1M7.5 24.5l2.1-2.1M22.4 9.6l2.1-2.1'/%3E%3C/g%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=30">
+  <link rel="stylesheet" href="styles.css?v=31">
   <script>
     // Aplica o tema antes de pintar (sem flash). Segue o sistema se nao houver escolha salva.
     (function () {
@@ -27,7 +27,7 @@
         <span class="brand-mark" data-icon="sun"></span>
         <span class="brand-name">Bom Dia</span>
       </div>
-      <nav class="nav" id="nav">
+      <nav class="nav" id="nav" aria-label="Áreas do Bom Dia">
         <button class="nav-item active" data-area="hoje"><span data-icon="sun"></span> Hoje <span class="nav-count" data-count="hoje"></span></button>
         <button class="nav-item" data-area="agenda"><span data-icon="calendar"></span> Agenda <span class="nav-count" data-count="agenda"></span></button>
         <button class="nav-item" data-area="projetos"><span data-icon="layers"></span> Projetos <span class="nav-count" data-count="projetos"></span></button>
@@ -50,17 +50,17 @@
         <h1 id="greeting" class="greeting">Bom dia</h1>
         <p id="subtitle" class="subtitle"></p>
 
-        <div class="pooh-cta" id="btnAssistant" role="button" tabindex="0">
+        <button class="pooh-cta" id="btnAssistant" type="button">
           <img class="poohzera-avatar med" src="assets/puzeira.png" alt="Poohzera">
-          <div class="pooh-cta-text">
-            <div class="pooh-cta-title">Fala comigo, Poohzera</div>
-            <div class="pooh-cta-sub">Escreve solto o que chegou — eu organizo em tarefas pra você.</div>
-          </div>
+          <span class="pooh-cta-text">
+            <span class="pooh-cta-title">Fala comigo, Poohzera</span>
+            <span class="pooh-cta-sub">Escreve solto o que chegou — eu organizo em tarefas pra você.</span>
+          </span>
           <span class="pooh-cta-go"><span data-icon="sparkle"></span> Organizar</span>
-        </div>
+        </button>
         <div class="hero-actions">
-          <button id="btnNew" class="btn-soft"><span data-icon="plus"></span> Adicionar tarefa</button>
-          <button id="btnRemind" class="btn-soft"><span data-icon="clock"></span> Me lembrar depois</button>
+          <button id="btnNew" class="btn-soft"><span data-icon="plus"></span> Nova tarefa</button>
+          <button id="btnRemind" class="btn-soft"><span data-icon="clock"></span> Lembrar amanhã</button>
         </div>
 
         <div class="focus">
@@ -83,19 +83,19 @@
 
       <!-- Barra de ferramentas -->
       <section class="toolbar">
-        <div class="filter-group" id="statusFilters">
+        <div class="filter-group" id="statusFilters" role="group" aria-label="Filtrar por status">
           <button class="chip active" data-status="ativas">Ativas</button>
           <button class="chip" data-status="todas">Todas</button>
           <button class="chip" data-status="concluida">Concluídas</button>
         </div>
-        <div class="view-toggle" id="viewToggle">
-          <button class="vbtn active" data-view="cards" title="Cards"><span data-icon="grid"></span></button>
-          <button class="vbtn" data-view="lista" title="Lista"><span data-icon="list"></span></button>
-          <button class="vbtn" data-view="kanban" title="Kanban"><span data-icon="columns"></span></button>
+        <div class="view-toggle" id="viewToggle" role="group" aria-label="Modo de visualização">
+          <button class="vbtn active" data-view="cards" title="Cards" aria-label="Visualização em cards"><span data-icon="grid"></span></button>
+          <button class="vbtn" data-view="lista" title="Lista" aria-label="Visualização em lista"><span data-icon="list"></span></button>
+          <button class="vbtn" data-view="kanban" title="Kanban" aria-label="Visualização em kanban"><span data-icon="columns"></span></button>
         </div>
       </section>
       <section class="toolbar sub">
-        <div class="filter-group" id="prioFilters">
+        <div class="filter-group" id="prioFilters" role="group" aria-label="Filtrar por prioridade">
           <span class="flabel">Prioridade</span>
           <button class="chip mini active" data-prio="todas">Todas</button>
           <button class="chip mini" data-prio="alta">Alta</button>
@@ -125,7 +125,7 @@
     <div class="modal modal-assistant">
       <div class="modal-head">
         <h2><img class="poohzera-avatar" id="poohAvatar" src="assets/puzeira.png" alt="Poohzera"> Poohzera</h2>
-        <button class="btn-icon" data-close="assistantModal"><span data-icon="close"></span></button>
+        <button class="btn-icon" data-close="assistantModal" aria-label="Fechar assistente"><span data-icon="close"></span></button>
       </div>
 
       <!-- Passo: configurar chave (se necessário) -->
@@ -166,7 +166,7 @@
     <div class="modal modal-task">
       <div class="modal-head">
         <h2 id="modalTitle">Nova tarefa</h2>
-        <button class="btn-icon" data-close="modal"><span data-icon="close"></span></button>
+        <button class="btn-icon" data-close="modal" aria-label="Fechar tarefa"><span data-icon="close"></span></button>
       </div>
       <form id="taskForm">
         <input type="hidden" id="taskId">
@@ -280,7 +280,7 @@
     <div class="modal modal-wa">
       <div class="modal-head">
         <h2><span data-icon="whatsapp"></span> Recado pro WhatsApp</h2>
-        <button class="btn-icon" data-close="waModal"><span data-icon="close"></span></button>
+        <button class="btn-icon" data-close="waModal" aria-label="Fechar recado"><span data-icon="close"></span></button>
       </div>
       <p class="hint">Escolha o tom, ajuste se quiser e copie. A IA monta o texto a partir da tarefa.</p>
       <div class="wa-modes" id="waModes">
@@ -302,7 +302,7 @@
     <div class="modal">
       <div class="modal-head">
         <h2>Ajustes</h2>
-        <button class="btn-icon" data-close="configModal"><span data-icon="close"></span></button>
+        <button class="btn-icon" data-close="configModal" aria-label="Fechar ajustes"><span data-icon="close"></span></button>
       </div>
       <div class="field">
         <label>Seu nome (pra saudação)</label>
@@ -327,7 +327,7 @@
     <div class="modal">
       <div class="modal-head">
         <h2 id="projModalTitle">Novo projeto</h2>
-        <button class="btn-icon" data-close="projectModal"><span data-icon="close"></span></button>
+        <button class="btn-icon" data-close="projectModal" aria-label="Fechar projeto"><span data-icon="close"></span></button>
       </div>
       <form id="projForm">
         <input type="hidden" id="projId">
