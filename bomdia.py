@@ -27,9 +27,14 @@ import os
 import sys
 import mimetypes
 import webbrowser
+import hashlib
+import hmac
+import secrets
+import time
 import urllib.request
 import urllib.error
-from urllib.parse import urlparse, unquote
+from http.cookies import SimpleCookie
+from urllib.parse import parse_qs, urlparse, unquote
 from datetime import datetime, date
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -45,6 +50,19 @@ def _env(name, default=""):
 APP_ENV = _env("APP_ENV", "local").lower()
 IS_LOCAL = APP_ENV != "production"          # producao e o unico modo "nao-local"
 APP_NAME = _env("APP_NAME", "Bom Dia")
+
+# Barreira temporaria de acesso. A senha padrao nao fica em texto puro no
+# repositorio; so o SHA-256 e comparado. AUTH_PASSWORD permite troca imediata
+# pelo painel de ambiente do Coolify, sem alterar codigo.
+AUTH_USER = _env("AUTH_USER", "Rafastos")
+AUTH_PASSWORD = _env("AUTH_PASSWORD")
+AUTH_PASSWORD_SHA256 = _env(
+    "AUTH_PASSWORD_SHA256",
+    "51864e438afd0b48904b9c95892c5f6ac6646ee3670ddee63d81db991982034f",
+).lower()
+AUTH_SECRET = _env("AUTH_SECRET") or secrets.token_hex(32)
+AUTH_COOKIE = "bomdia_session"
+AUTH_TTL_SECONDS = 60 * 60 * 24 * 7
 
 # DATA_DIR: onde vivem banco e config. Default = pasta do projeto (modo local
 # intocado). Em producao, aponte para o volume persistente (ex.: /data).
@@ -66,13 +84,51 @@ IDEA_TARGET_TIPOS = ("projeto", "rotina", "tarefa")
 
 # Arquivos que o servidor PODE entregar ao navegador. Tudo o que nao estiver
 # aqui (codigo .py, banco .db, config.json, .vbs/.bat, etc.) e negado.
-PUBLIC_FILES = {"index.html", "styles.css", "app.js", "favicon.ico", "robots.txt"}
+PUBLIC_FILES = {"index.html", "login.html", "styles.css", "app.js", "favicon.ico", "robots.txt"}
 PUBLIC_DIRS = ("assets",)
 
 
 def log(msg):
     """Log simples em stdout (aparece no Coolify/Docker logs). Nunca logar segredos."""
     print(f"[bomdia] {msg}", flush=True)
+
+
+def _auth_password_digest():
+    """Digest da credencial ativa, usado tanto na validacao quanto na sessao."""
+    if AUTH_PASSWORD:
+        return hashlib.sha256(AUTH_PASSWORD.encode("utf-8")).hexdigest()
+    return AUTH_PASSWORD_SHA256
+
+
+def _valid_credentials(username, password):
+    username_ok = hmac.compare_digest(username, AUTH_USER)
+    supplied = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    password_ok = hmac.compare_digest(supplied, _auth_password_digest())
+    return username_ok and password_ok
+
+
+def _new_session_token():
+    expires = int(time.time()) + AUTH_TTL_SECONDS
+    payload = f"{AUTH_USER}|{expires}|{_auth_password_digest()}"
+    signature = hmac.new(
+        AUTH_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return f"{expires}.{signature}"
+
+
+def _valid_session_token(token):
+    try:
+        expires_raw, supplied_signature = token.split(".", 1)
+        expires = int(expires_raw)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    if expires < int(time.time()):
+        return False
+    payload = f"{AUTH_USER}|{expires}|{_auth_password_digest()}"
+    expected = hmac.new(
+        AUTH_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(supplied_signature, expected)
 
 
 # ----------------------------------------------------------------------------
@@ -1058,7 +1114,53 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
         super().end_headers()
+
+    def _redirect(self, location, status=303):
+        self.send_response(status)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _read_form(self):
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 16_384:
+            return {}
+        raw = self.rfile.read(length).decode("utf-8", errors="replace")
+        return {key: values[-1] for key, values in parse_qs(raw).items() if values}
+
+    def _is_authenticated(self):
+        raw_cookie = self.headers.get("Cookie", "")
+        if not raw_cookie:
+            return False
+        try:
+            cookies = SimpleCookie()
+            cookies.load(raw_cookie)
+            morsel = cookies.get(AUTH_COOKIE)
+            return bool(morsel and _valid_session_token(morsel.value))
+        except Exception:  # cookie malformado simplesmente nao autentica
+            return False
+
+    def _serve_login(self, error=False):
+        path = os.path.join(BASE_DIR, "login.html")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                page = f.read()
+        except OSError:
+            return self._json({"error": "pagina de login indisponivel"}, 500)
+        message = (
+            '<p class="login-error" role="alert">Usuário ou senha incorretos.</p>'
+            if error else ""
+        )
+        body = page.replace("{{ERROR}}", message).encode("utf-8")
+        self.send_response(401 if error else 200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def _json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -1105,6 +1207,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not full:
             return self._json({"error": "nao encontrado"}, 404)
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
+        if full.lower().endswith(".woff2"):
+            ctype = "font/woff2"
         try:
             with open(full, "rb") as f:
                 data = f.read()
@@ -1136,6 +1240,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _dispatch(self, route):
         """Um erro em um request nunca derruba o servidor: vira 400/500 JSON."""
         try:
+            path = urlparse(self.path).path
+            public = path in (
+                "/health", "/api/health", "/login", "/assets/InterVariable.woff2"
+            )
+            if not public and not self._is_authenticated():
+                if path.startswith("/api/"):
+                    return self._json({"error": "autenticacao necessaria"}, 401)
+                return self._redirect("/login")
             route()
         except (ValueError, json.JSONDecodeError) as e:
             # IDs invalidos, JSON malformado, etc. -> erro do cliente.
@@ -1154,6 +1266,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = parsed.path
         if path in ("/health", "/api/health"):
             return self._json({"status": "ok"})
+        if path == "/login":
+            if self._is_authenticated():
+                return self._redirect("/")
+            return self._serve_login()
         if path == "/api/tasks":
             return self._json(list_tasks())
         if path == "/api/projects":
@@ -1176,6 +1292,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _route_post(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/login":
+            form = self._read_form()
+            if not _valid_credentials(form.get("username", ""), form.get("password", "")):
+                return self._serve_login(error=True)
+            self.send_response(303)
+            cookie = f"{AUTH_COOKIE}={_new_session_token()}; Path=/; HttpOnly; SameSite=Lax; Max-Age={AUTH_TTL_SECONDS}"
+            if not IS_LOCAL:
+                cookie += "; Secure"
+            self.send_header("Set-Cookie", cookie)
+            self.send_header("Location", "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if parsed.path == "/logout":
+            self.send_response(303)
+            cookie = f"{AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+            if not IS_LOCAL:
+                cookie += "; Secure"
+            self.send_header("Set-Cookie", cookie)
+            self.send_header("Location", "/login")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if parsed.path == "/api/tasks":
             tid = create_task(self._read_json())
             return self._json({"id": tid}, 201)
@@ -1280,6 +1419,9 @@ def main():
     log(f"escutando em: http://{HOST}:{PORT}")
     log(f"banco:  {DB_PATH}")
     log(f"config: {CONFIG_PATH}")
+    log(f"login temporario ativo para: {AUTH_USER}")
+    if not os.environ.get("AUTH_SECRET"):
+        log("aviso: AUTH_SECRET nao definido; sessoes serao encerradas no proximo restart")
     cfg = load_config()
     log(f"OpenAI configurada: {api_key_ok(cfg.get('openai_api_key', ''))} | modelo: {cfg.get('model', DEFAULT_MODEL)}")
     # Navegador so abre no modo local (na VPS nao ha desktop).

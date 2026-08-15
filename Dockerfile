@@ -20,7 +20,7 @@ RUN apt-get update \
 
 # Codigo da aplicacao. O .dockerignore mantem fora do build o banco, config,
 # scripts de Windows (.vbs/.bat/.pyw), .git e afins.
-COPY bomdia.py index.html styles.css app.js ./
+COPY bomdia.py index.html login.html styles.css app.js ./
 COPY assets/ ./assets/
 
 # Pasta de dados (o volume persistente do Coolify sera montado aqui).

@@ -45,6 +45,9 @@ DATA_DIR=/data
 OPENAI_API_KEY=sk-...          # marque como secret/build-secret
 OPENAI_MODEL=gpt-4.1-mini
 APP_NAME=Bom Dia
+AUTH_USER=Rafastos
+AUTH_PASSWORD=<senha-temporaria>
+AUTH_SECRET=<string-aleatoria-longa> # marque como secret
 ```
 
 > `HOST`, `PORT` e `DATA_DIR` já vêm com esses valores no `Dockerfile`; deixá-los
@@ -137,14 +140,21 @@ deixa o banco como arquivo único e portátil — basta copiá-lo.
 
 ## 7. Segurança / exposição pública (IMPORTANTE)
 
-O Bom Dia é um organizador **pessoal**. Ele **não tem login próprio** — qualquer
-pessoa com a URL poderia criar/apagar tarefas. **Não deixe aberto na internet.**
-Proteja com autenticação **na frente** do app (nenhuma mudança de código):
+O Bom Dia é um organizador **pessoal** e agora inclui um login temporário no
+próprio servidor. Todas as páginas e APIs de dados exigem sessão; apenas
+`/health` e a página de login ficam públicas. A senha não é enviada ao
+JavaScript e o cookie é `HttpOnly`, `SameSite=Lax` e `Secure` em produção.
+
+Cadastre `AUTH_SECRET` como segredo no Coolify. Se ele não for definido, o app
+gera um segredo novo ao iniciar e todas as sessões abertas são encerradas a cada
+restart. Troque `AUTH_PASSWORD` assim que quiser revogar os acessos existentes.
+
+Como essa é uma barreira provisória, uma camada adicional continua recomendada:
 
 - **Cloudflare Access** (recomendado): coloque o domínio atrás do Cloudflare e
   crie uma policy de e-mail (só `raafastos@gmail.com` entra). Simples e forte.
-- **Basic Auth do Traefik/Coolify:** o Coolify permite habilitar Basic Auth por
-  middleware no serviço — barreira mínima com usuário/senha.
+- **Basic Auth do Traefik/Coolify:** pode ser habilitado como segunda barreira
+  pelo middleware do serviço.
 
 O app já ajuda: serve **apenas** os arquivos públicos (`index.html`, `styles.css`,
 `app.js`, `assets/`). Código, banco e `config.json` **não são baixáveis**.
@@ -159,5 +169,6 @@ O app já ajuda: serve **apenas** os arquivos públicos (`index.html`, `styles.c
 - [ ] Volume `bomdia-data` montado em `/data`
 - [ ] Variáveis de ambiente cadastradas (com `OPENAI_API_KEY` como secret)
 - [ ] Healthcheck `/health`
-- [ ] Proteção de acesso (Cloudflare Access / Basic Auth) ligada
+- [ ] `AUTH_SECRET` e credenciais cadastrados como secrets
+- [ ] Proteção adicional (Cloudflare Access / Basic Auth), se desejada
 - [ ] `bomdia.db` migrado para `/data` e testado

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1E2E52">
+  <title>Entrar · Bom Dia</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231E2E52'/%3E%3Ccircle cx='16' cy='16' r='5' fill='none' stroke='%23F2C94C' stroke-width='2'/%3E%3C/svg%3E">
+  <style>
+    @font-face { font-family: InterVariable; src: url("assets/InterVariable.woff2") format("woff2"); font-display: swap; font-weight: 100 900; }
+    :root { color-scheme: light; font-family: InterVariable, Inter, system-ui, sans-serif; --navy: #1e2e52; --warm: #f3f1ec; --paper: #fff; --ink: #202027; --muted: #6d6d76; --line: #e3e0d8; --sun: #f2c94c; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100svh; background: var(--warm); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    .login-shell { min-height: 100svh; display: grid; grid-template-columns: minmax(280px, .9fr) minmax(420px, 1.1fr); }
+    .login-brand { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(32px, 5vw, 72px); background: var(--navy); color: white; }
+    .login-brand::after { content: ""; position: absolute; width: min(54vw, 620px); aspect-ratio: 1; right: -26%; bottom: -32%; border: clamp(54px, 8vw, 100px) solid rgba(242,201,76,.12); border-radius: 50%; animation: breathe 5s ease-in-out infinite; }
+    .brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; font-size: 21px; font-weight: 750; letter-spacing: -.4px; }
+    .sun { width: 34px; height: 34px; color: var(--sun); }
+    .login-note { position: relative; z-index: 1; max-width: 430px; }
+    .login-note h1 { margin: 0; max-width: 10ch; font-size: clamp(38px, 5.5vw, 74px); line-height: .98; letter-spacing: -.055em; }
+    .login-note p { margin: 22px 0 0; max-width: 34ch; color: rgba(255,255,255,.68); font-size: 16px; line-height: 1.6; }
+    .login-main { display: grid; place-items: center; padding: clamp(24px, 7vw, 96px); }
+    .login-form { width: min(100%, 390px); animation: arrive .45s cubic-bezier(.2,.7,.2,1) both; }
+    .eyebrow { margin: 0 0 10px; color: var(--navy); font-size: 12px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    .login-form h2 { margin: 0; font-size: clamp(30px, 4vw, 42px); line-height: 1.08; letter-spacing: -.045em; }
+    .intro { margin: 12px 0 30px; color: var(--muted); line-height: 1.55; }
+    label { display: block; margin: 0 0 8px; color: #4e4e57; font-size: 13px; font-weight: 650; }
+    input { width: 100%; min-height: 50px; margin-bottom: 18px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); color: var(--ink); font: inherit; font-size: 16px; outline: none; transition: border-color .15s, box-shadow .15s; }
+    input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(30,46,82,.1); }
+    button { width: 100%; min-height: 52px; margin-top: 4px; border: 0; border-radius: 12px; background: var(--navy); color: white; font: inherit; font-weight: 700; cursor: pointer; transition: transform .12s, background .15s; }
+    button:hover { background: #29406e; transform: translateY(-1px); }
+    button:active { transform: translateY(0) scale(.99); }
+    .login-error { margin: -4px 0 18px; padding: 10px 12px; border-left: 3px solid #c25b54; background: #f7e7e5; color: #a34540; border-radius: 4px 9px 9px 4px; font-size: 13px; }
+    .privacy { margin: 20px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+    @keyframes arrive { from { opacity: 0; transform: translateY(12px); } }
+    @keyframes breathe { 50% { transform: scale(1.04); opacity: .72; } }
+    @media (max-width: 760px) {
+      .login-shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .login-brand { min-height: 190px; padding: 24px 22px 28px; gap: 34px; }
+      .login-note h1 { max-width: none; font-size: 36px; }
+      .login-note p { display: none; }
+      .login-brand::after { width: 280px; right: -120px; bottom: -155px; border-width: 50px; }
+      .login-main { place-items: start center; padding: 34px 20px max(36px, env(safe-area-inset-bottom)); }
+      .intro { margin-bottom: 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-brand" aria-label="Bom Dia">
+      <div class="brand">
+        <svg class="sun" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="16" cy="16" r="5"/><path d="M16 3v4M16 25v4M3 16h4M25 16h4M6.8 6.8l2.8 2.8M22.4 22.4l2.8 2.8M6.8 25.2l2.8-2.8M22.4 9.6l2.8-2.8"/></svg>
+        Bom Dia
+      </div>
+      <div class="login-note">
+        <h1>Seu dia começa aqui.</h1>
+        <p>Uma barreira simples enquanto preparamos a autenticação definitiva.</p>
+      </div>
+    </section>
+    <section class="login-main">
+      <form class="login-form" action="/login" method="post">
+        <p class="eyebrow">Acesso privado</p>
+        <h2>Bem-vindo de volta</h2>
+        <p class="intro">Entre para acessar suas demandas, projetos e anotações.</p>
+        {{ERROR}}
+        <label for="username">Usuário</label>
+        <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+        <label for="password">Senha</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Entrar no Bom Dia</button>
+        <p class="privacy">Sessão protegida por cookie seguro.</p>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

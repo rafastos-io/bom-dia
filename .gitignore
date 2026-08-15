@@ -1,4 +1,5 @@
 # Banco local com dados pessoais - nao versionar
+bomdia*.db
 bomdia.db
 bomdia.db-journal
 bomdia.db-wal

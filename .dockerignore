@@ -6,6 +6,7 @@ __pycache__/
 *.log
 
 # Dados e segredos (ficam no volume/variaveis, nunca na imagem)
+bomdia*.db
 bomdia.db
 bomdia.db-journal
 bomdia.db-wal
