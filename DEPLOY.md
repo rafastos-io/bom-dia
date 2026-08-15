@@ -73,10 +73,25 @@ imagem, **redeploys/rebuilds não apagam os dados**.
 
 ## 4. Redeploy sem perder dados
 
-1. `git push` das alterações → Coolify faz rebuild da imagem.
-2. O container novo sobe montando o **mesmo volume** em `/data`.
-3. `init_db()` roda `CREATE TABLE IF NOT EXISTS` + migrações idempotentes:
+O Coolify acompanha **somente o branch `main`**. Push em branch de trabalho não é deploy.
+
+1. Faça commit/push no branch de trabalho.
+2. Crie e mergeie o PR para `main` (ou envie diretamente para `main` quando esse for o fluxo
+   explicitamente escolhido).
+3. O webhook GitHub → Coolify cria automaticamente o deploy do novo SHA da `main`.
+4. O container novo sobe montando o **mesmo volume** em `/data`.
+5. `init_db()` roda `CREATE TABLE IF NOT EXISTS` + migrações idempotentes:
    nada é recriado nem apagado. Seus dados continuam lá.
+
+Para considerar a publicação concluída, confirme que o deploy do SHA da `main` chegou a
+`finished`. Diagnóstico do pipeline:
+
+```bash
+ssh vps vps-health
+```
+
+Se Horizon, SSH interno, webhook e autorreparo estiverem `OK`, mas não houver deploy novo,
+compare o branch enviado com a `main` antes de reiniciar qualquer serviço.
 
 Nunca remova/reset o volume `bomdia-data` a menos que queira zerar tudo.
 
@@ -172,3 +187,5 @@ O app já ajuda: serve **apenas** os arquivos públicos (`index.html`, `styles.c
 - [ ] `AUTH_SECRET` e credenciais cadastrados como secrets
 - [ ] Proteção adicional (Cloudflare Access / Basic Auth), se desejada
 - [ ] `bomdia.db` migrado para `/data` e testado
+- [ ] Alterações mergeadas na `main` (push em feature branch não publica)
+- [ ] Deploy automático do SHA da `main` concluído como `finished`
