@@ -36,6 +36,14 @@ pra fazer.
 Python puro (biblioteca padrão: `http.server` + `sqlite3`) no back-end, HTML/CSS/JS na interface.
 Único extra: `pystray` + `pillow` para o ícone da bandeja.
 
+## Interface Bom Dia 2
+
+A interface segue um cockpit editorial: menu preto estrutural, canvas claro, tipografia do sistema
+e azul reservado para ações e estados. No celular, a navegação principal fica fixa na parte inferior,
+o botão de captura permanece ao alcance do polegar e todo o conteúdo funciona sem rolagem lateral
+desde 320 px. Movimento, transparência e contraste respeitam as preferências de acessibilidade do
+sistema operacional.
+
 ```bash
 pip install pystray pillow
 ```

@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
   <title>Bom Dia</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231E2E52'/%3E%3Cg fill='none' stroke='%23F2C94C' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='16' cy='16' r='5'/%3E%3Cpath d='M16 4v3M16 25v3M4 16h3M25 16h3M7.5 7.5l2.1 2.1M22.4 22.4l2.1 2.1M7.5 24.5l2.1-2.1M22.4 9.6l2.1-2.1'/%3E%3C/g%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=31">
+  <link rel="stylesheet" href="styles.css?v=32">
   <script>
     // Aplica o tema antes de pintar (sem flash). Segue o sistema se nao houver escolha salva.
     (function () {
@@ -20,6 +20,7 @@
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#mainContent">Pular para o conteúdo</a>
   <div class="app">
     <!-- Barra lateral -->
     <aside class="sidebar">
@@ -44,19 +45,20 @@
     </aside>
 
     <!-- Conteúdo -->
-    <main class="content">
+    <main class="content" id="mainContent">
       <!-- Dashboard (só em Hoje) -->
       <section id="dashboard" class="dashboard">
+        <p class="section-kicker">Central do dia</p>
         <h1 id="greeting" class="greeting">Bom dia</h1>
         <p id="subtitle" class="subtitle"></p>
 
         <button class="pooh-cta" id="btnAssistant" type="button">
           <img class="poohzera-avatar med" src="assets/puzeira.png" alt="Poohzera">
           <span class="pooh-cta-text">
-            <span class="pooh-cta-title">Fala comigo, Poohzera</span>
-            <span class="pooh-cta-sub">Escreve solto o que chegou — eu organizo em tarefas pra você.</span>
+            <span class="pooh-cta-title">Despeje tudo. Eu organizo.</span>
+            <span class="pooh-cta-sub">Recados, ideias e pendências viram um plano pronto para revisar.</span>
           </span>
-          <span class="pooh-cta-go"><span data-icon="sparkle"></span> Organizar</span>
+          <span class="pooh-cta-go"><span data-icon="sparkle"></span> Abrir Poohzera</span>
         </button>
         <div class="hero-actions">
           <button id="btnNew" class="btn-soft"><span data-icon="plus"></span> Nova tarefa</button>
