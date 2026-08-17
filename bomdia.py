@@ -34,7 +34,7 @@ import time
 import urllib.request
 import urllib.error
 from http.cookies import SimpleCookie
-from urllib.parse import parse_qs, urlparse, unquote
+from urllib.parse import parse_qs, urlparse, unquote, quote
 from datetime import datetime, date
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -81,6 +81,19 @@ DEFAULT_MODEL = _env("OPENAI_MODEL", "gpt-4.1-mini")
 TIPOS = ("tarefa", "ideia", "rotina")
 RECORRENCIAS = ("diaria", "semanal", "mensal")
 IDEA_TARGET_TIPOS = ("projeto", "rotina", "tarefa")
+
+# Armazenamento de arquivos (Cloudflare R2, S3-compativel). As credenciais vem
+# das Shared Variables do Coolify (escopo Team): R2_ENDPOINT, R2_BUCKET,
+# R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY. Nunca sao gravadas em disco.
+# Convencao de pasta por projeto no bucket unico: rafastos-storage/bomdia/...
+R2_ENDPOINT = _env("R2_ENDPOINT")            # https://<accountid>.r2.cloudflarestorage.com
+R2_BUCKET = _env("R2_BUCKET")                # rafastos-storage
+R2_ACCESS_KEY_ID = _env("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = _env("R2_SECRET_ACCESS_KEY")
+R2_PREFIX = _env("R2_PREFIX", "bomdia")      # pasta deste projeto dentro do bucket
+R2_REGION = "auto"                           # R2 assina como regiao "auto"
+MAX_UPLOAD_MB = int(_env("MAX_UPLOAD_MB", "25"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 # Arquivos que o servidor PODE entregar ao navegador. Tudo o que nao estiver
 # aqui (codigo .py, banco .db, config.json, .vbs/.bat, etc.) e negado.
@@ -218,6 +231,18 @@ def init_db():
             target_id   INTEGER NOT NULL,  -- projects.id ou tasks.id
             FOREIGN KEY (idea_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS attachments (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_type   TEXT NOT NULL,     -- 'task' | 'project'
+            owner_id     INTEGER NOT NULL,  -- tasks.id ou projects.id
+            filename     TEXT NOT NULL,     -- nome original exibido ao usuario
+            key          TEXT NOT NULL,     -- caminho do objeto no R2 (bomdia/...)
+            content_type TEXT DEFAULT '',
+            size         INTEGER DEFAULT 0,
+            created_at   TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_attachments_owner
+            ON attachments(owner_type, owner_id);
         """
     )
     # Migracoes incrementais (idempotentes)
@@ -417,6 +442,9 @@ def list_tasks():
         "CASE priority WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, "
         "COALESCE(due_date, '9999-12-31') ASC, id DESC"
     ).fetchall()
+    # Contagem de anexos por tarefa numa unica query (evita N+1).
+    att_counts = {r["owner_id"]: r["n"] for r in conn.execute(
+        "SELECT owner_id, COUNT(*) AS n FROM attachments WHERE owner_type = 'task' GROUP BY owner_id")}
     result = []
     for t in tasks:
         links = conn.execute(
@@ -428,6 +456,7 @@ def list_tasks():
         ).fetchall()
         d = task_to_dict(t, links, subs)
         d["idea_links"] = _idea_links(conn, t["id"]) if (t["tipo"] or "") == "ideia" else []
+        d["attach_count"] = att_counts.get(t["id"], 0)
         result.append(d)
     conn.close()
     return result
@@ -565,6 +594,7 @@ def set_routine_done(task_id, done):
 
 
 def delete_task(task_id):
+    delete_attachments_for("task", task_id)  # remove anexos do R2 antes de apagar a tarefa
     conn = get_db()
     conn.execute("DELETE FROM links WHERE task_id = ?", (task_id,))
     conn.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,))
@@ -678,6 +708,7 @@ def update_project(pid, data):
 
 
 def delete_project(pid):
+    delete_attachments_for("project", pid)  # remove anexos do R2 antes de apagar o projeto
     conn = get_db()
     p = conn.execute("SELECT name FROM projects WHERE id = ?", (pid,)).fetchone()
     if p:
@@ -1098,6 +1129,198 @@ def build_gaps(task, projetos):
 
 
 # ----------------------------------------------------------------------------
+# Armazenamento de arquivos: cliente Cloudflare R2 (S3 SigV4, biblioteca padrao)
+# ----------------------------------------------------------------------------
+# R2 e compativel com S3. Assinamos as requisicoes com AWS Signature v4 usando
+# apenas hmac/hashlib — sem boto3, sem dependencias. Mantem o Dockerfile limpo.
+def r2_enabled():
+    """True apenas quando as quatro variaveis do R2 estao presentes."""
+    return all((R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY))
+
+
+def _sha256_hex(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def _hmac_sha256(key, msg):
+    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+
+
+def _r2_signing_key(date_stamp):
+    k_date = _hmac_sha256(("AWS4" + R2_SECRET_ACCESS_KEY).encode("utf-8"), date_stamp)
+    k_region = _hmac_sha256(k_date, R2_REGION)
+    k_service = _hmac_sha256(k_region, "s3")
+    return _hmac_sha256(k_service, "aws4_request")
+
+
+def _r2_request(method, key, data=None, content_type=None):
+    """Assina e executa uma requisicao S3 path-style no R2.
+    Retorna a resposta do urllib (streamable). Quem chama deve fechar/ler."""
+    if not r2_enabled():
+        raise RuntimeError("R2 nao configurado")
+    endpoint = R2_ENDPOINT.rstrip("/")
+    host = urlparse(endpoint).netloc
+    # Cada segmento do path e URI-encodado, mantendo as barras.
+    canonical_key = "/".join(quote(seg, safe="") for seg in key.split("/"))
+    canonical_uri = f"/{quote(R2_BUCKET, safe='')}/{canonical_key}"
+    url = f"{endpoint}{canonical_uri}"
+    payload = data if data is not None else b""
+    payload_hash = _sha256_hex(payload)
+
+    now = time.gmtime()
+    amz_date = time.strftime("%Y%m%dT%H%M%SZ", now)
+    date_stamp = time.strftime("%Y%m%d", now)
+
+    headers = {
+        "host": host,
+        "x-amz-content-sha256": payload_hash,
+        "x-amz-date": amz_date,
+    }
+    if content_type:
+        headers["content-type"] = content_type
+
+    signed_keys = sorted(headers)
+    canonical_headers = "".join(f"{k}:{headers[k]}\n" for k in signed_keys)
+    signed_headers = ";".join(signed_keys)
+    canonical_request = "\n".join(
+        [method, canonical_uri, "", canonical_headers, signed_headers, payload_hash]
+    )
+    scope = f"{date_stamp}/{R2_REGION}/s3/aws4_request"
+    string_to_sign = "\n".join(
+        ["AWS4-HMAC-SHA256", amz_date, scope, _sha256_hex(canonical_request.encode("utf-8"))]
+    )
+    signature = hmac.new(
+        _r2_signing_key(date_stamp), string_to_sign.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    authorization = (
+        f"AWS4-HMAC-SHA256 Credential={R2_ACCESS_KEY_ID}/{scope}, "
+        f"SignedHeaders={signed_headers}, Signature={signature}"
+    )
+    req_headers = dict(headers)
+    req_headers["Authorization"] = authorization
+    body = payload if method in ("PUT", "POST") else None
+    req = urllib.request.Request(url, data=body, method=method, headers=req_headers)
+    return urllib.request.urlopen(req, timeout=60)
+
+
+def r2_put(key, data, content_type):
+    resp = _r2_request("PUT", key, data=data, content_type=content_type)
+    try:
+        resp.read()
+    finally:
+        resp.close()
+
+
+def r2_delete(key):
+    try:
+        resp = _r2_request("DELETE", key)
+        try:
+            resp.read()
+        finally:
+            resp.close()
+    except urllib.error.HTTPError as e:
+        # 404 = objeto ja nao existe; tratamos como sucesso idempotente.
+        if e.code not in (200, 204, 404):
+            raise
+
+
+def _safe_name(filename):
+    """Higieniza o nome do arquivo para exibicao e para compor a chave no R2."""
+    base = os.path.basename((filename or "").replace("\\", "/")) or "arquivo"
+    limpo = "".join(ch if (ch.isalnum() or ch in ".-_ ") else "_" for ch in base)
+    limpo = limpo.strip() or "arquivo"
+    return limpo[:120]
+
+
+def _build_key(owner_type, owner_id, filename):
+    """Caminho unico no bucket: bomdia/<tipo>/<id>/<aleatorio>-<nome>."""
+    uid = secrets.token_hex(8)
+    return f"{R2_PREFIX}/{owner_type}/{int(owner_id)}/{uid}-{_safe_name(filename)}"
+
+
+# ----------------------------------------------------------------------------
+# Anexos (metadados no banco; bytes no R2)
+# ----------------------------------------------------------------------------
+_ATT_PUBLIC_COLS = ("id", "owner_type", "owner_id", "filename", "content_type", "size", "created_at")
+
+
+def _public_att(row):
+    """Expoe o anexo ao front SEM revelar a chave interna do R2."""
+    if not row:
+        return None
+    d = dict(row)
+    return {k: d.get(k) for k in _ATT_PUBLIC_COLS}
+
+
+def list_attachments(owner_type, owner_id):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, owner_type, owner_id, filename, content_type, size, created_at "
+        "FROM attachments WHERE owner_type = ? AND owner_id = ? ORDER BY id DESC",
+        (owner_type, int(owner_id))).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_attachment(att_id):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM attachments WHERE id = ?", (int(att_id),)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_attachment(owner_type, owner_id, filename, key, content_type, size):
+    conn = get_db()
+    now = datetime.now().isoformat(timespec="seconds")
+    cur = conn.execute(
+        "INSERT INTO attachments (owner_type, owner_id, filename, key, content_type, size, created_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (owner_type, int(owner_id), filename, key, content_type, int(size), now))
+    conn.commit()
+    att_id = cur.lastrowid
+    conn.close()
+    return att_id
+
+
+def delete_attachment(att_id):
+    """Apaga o objeto no R2 (best-effort) e o registro no banco."""
+    att = get_attachment(att_id)
+    if not att:
+        return False
+    if r2_enabled():
+        try:
+            r2_delete(att["key"])
+        except Exception as e:  # noqa: BLE001
+            log(f"aviso: falha ao apagar do R2 {att['key']}: {e}")
+    conn = get_db()
+    conn.execute("DELETE FROM attachments WHERE id = ?", (int(att_id),))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_attachments_for(owner_type, owner_id):
+    """Remove todos os anexos de uma tarefa/projeto (R2 + banco). Best-effort no R2."""
+    conn = get_db()
+    rows = conn.execute("SELECT id, key FROM attachments WHERE owner_type = ? AND owner_id = ?",
+                        (owner_type, int(owner_id))).fetchall()
+    conn.close()
+    if not rows:
+        return
+    if r2_enabled():
+        for r in rows:
+            try:
+                r2_delete(r["key"])
+            except Exception as e:  # noqa: BLE001
+                log(f"aviso: falha ao apagar do R2 {r['key']}: {e}")
+    conn = get_db()
+    conn.execute("DELETE FROM attachments WHERE owner_type = ? AND owner_id = ?",
+                 (owner_type, int(owner_id)))
+    conn.commit()
+    conn.close()
+
+
+# ----------------------------------------------------------------------------
 # Servidor HTTP
 # ----------------------------------------------------------------------------
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -1180,6 +1403,105 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not isinstance(data, dict):
             raise ValueError("JSON invalido (esperado objeto).")
         return data
+
+    # -- Upload (multipart/form-data parseado a mao) -------------------------
+    @staticmethod
+    def _disp_param(header, key):
+        """Extrai um parametro entre aspas de um Content-Disposition (name, filename)."""
+        token = key + '="'
+        i = header.find(token)
+        if i < 0:
+            return None
+        i += len(token)
+        j = header.find('"', i)
+        return header[i:j] if j >= 0 else None
+
+    def _read_multipart(self):
+        """Parser minimo de multipart/form-data. Retorna (campos, arquivos).
+        arquivos = lista de {name, filename, content_type, data(bytes)}."""
+        ctype = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in ctype.lower():
+            return {}, []
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0:
+            return {}, []
+        if length > MAX_UPLOAD_BYTES + 1_000_000:
+            raise ValueError(f"envio acima do limite de {MAX_UPLOAD_MB} MB")
+        boundary = ""
+        for token in ctype.split(";"):
+            token = token.strip()
+            if token.lower().startswith("boundary="):
+                boundary = token[len("boundary="):].strip().strip('"')
+        if not boundary:
+            raise ValueError("multipart sem boundary")
+        body = self.rfile.read(length)
+        delimiter = b"--" + boundary.encode("utf-8")
+        fields, files = {}, []
+        for part in body.split(delimiter):
+            if part in (b"", b"--", b"--\r\n", b"\r\n"):
+                continue
+            if part.startswith(b"\r\n"):
+                part = part[2:]
+            if part.endswith(b"\r\n"):
+                part = part[:-2]
+            header_blob, sep, content = part.partition(b"\r\n\r\n")
+            if not sep:
+                continue
+            disp, part_ctype = "", ""
+            for line in header_blob.decode("utf-8", "replace").split("\r\n"):
+                low = line.lower()
+                if low.startswith("content-disposition:"):
+                    disp = line
+                elif low.startswith("content-type:"):
+                    part_ctype = line.split(":", 1)[1].strip()
+            name = self._disp_param(disp, "name")
+            filename = self._disp_param(disp, "filename")
+            if filename is not None:
+                files.append({"name": name, "filename": filename,
+                              "content_type": part_ctype, "data": content})
+            elif name is not None:
+                fields[name] = content.decode("utf-8", "replace")
+        return fields, files
+
+    def _download_attachment(self, att_id):
+        """Baixa o objeto do R2 e o repassa ao navegador (proxy). O bucket segue
+        privado: so quem tem sessao valida chega aqui (gate global em _dispatch)."""
+        att = get_attachment(att_id)
+        if not att:
+            return self._json({"error": "anexo nao encontrado"}, 404)
+        if not r2_enabled():
+            return self._json({"error": "armazenamento indisponivel"}, 503)
+        try:
+            resp = _r2_request("GET", att["key"])
+        except urllib.error.HTTPError as e:
+            log(f"erro download R2 {att['key']}: HTTP {e.code}")
+            return self._json({"error": "arquivo indisponivel"}, 502)
+        except Exception as e:  # noqa: BLE001
+            log(f"erro download R2 {att['key']}: {e}")
+            return self._json({"error": "arquivo indisponivel"}, 502)
+        try:
+            ctype = att.get("content_type") or "application/octet-stream"
+            # Imagens (menos SVG) podem abrir inline; o resto forca download.
+            inline_ok = ctype.startswith("image/") and ctype != "image/svg+xml"
+            disp = "inline" if inline_ok else "attachment"
+            fname = (att.get("filename") or "arquivo").replace('"', "")
+            length = resp.headers.get("Content-Length")
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header(
+                "Content-Disposition",
+                f"{disp}; filename=\"{fname}\"; filename*=UTF-8''{quote(att.get('filename') or 'arquivo')}")
+            if length:
+                self.send_header("Content-Length", length)
+            self.end_headers()
+            if self.command != "HEAD":
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        finally:
+            resp.close()
 
     # -- Static (allowlist) --------------------------------------------------
     def _resolve_public(self, url_path):
@@ -1274,7 +1596,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(list_tasks())
         if path == "/api/projects":
             return self._json(list_projects())
+        if path == "/api/attachments":
+            qs = parse_qs(parsed.query)
+            ot = (qs.get("owner_type", [""])[0]).strip()
+            oid = (qs.get("owner_id", [""])[0]).strip()
+            if ot not in ("task", "project") or not oid.isdigit():
+                return self._json({"error": "parametros invalidos"}, 400)
+            return self._json({"attachments": list_attachments(ot, int(oid))})
         gparts = path.strip("/").split("/")
+        if len(gparts) == 4 and gparts[0] == "api" and gparts[1] == "attachments" and gparts[3] == "download":
+            return self._download_attachment(int(gparts[2]))
         if len(gparts) == 4 and gparts[0] == "api" and gparts[1] == "projects" and gparts[3] == "notes":
             return self._json(list_notes(int(gparts[2])))
         if path == "/api/ai/status":
@@ -1285,6 +1616,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "name": cfg.get("name", ""),
                 "env": APP_ENV,
                 "local": IS_LOCAL,
+                "storage": r2_enabled(),
+                "max_upload_mb": MAX_UPLOAD_MB,
             })
         if path.startswith("/api/"):
             return self._json({"error": "rota nao encontrada"}, 404)
@@ -1366,6 +1699,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log(f"erro OpenAI (whatsapp): {e}")
                 return self._json({"error": str(e)}, 502)
             return self._json({"mensagem": mensagem})
+        if parsed.path == "/api/attachments":
+            if not r2_enabled():
+                return self._json({"error": "Armazenamento de arquivos nao configurado no servidor."}, 503)
+            fields, files = self._read_multipart()
+            owner_type = (fields.get("owner_type") or "").strip()
+            owner_id = (fields.get("owner_id") or "").strip()
+            if owner_type not in ("task", "project") or not owner_id.isdigit():
+                return self._json({"error": "destino invalido"}, 400)
+            enviados = [f for f in files if (f.get("filename") or "").strip() and f.get("data")]
+            if not enviados:
+                return self._json({"error": "Nenhum arquivo recebido."}, 400)
+            salvos = []
+            for f in enviados:
+                if len(f["data"]) > MAX_UPLOAD_BYTES:
+                    return self._json(
+                        {"error": f"'{f['filename']}' passa de {MAX_UPLOAD_MB} MB."}, 413)
+                ctype = (f.get("content_type") or "").strip() \
+                    or mimetypes.guess_type(f["filename"])[0] or "application/octet-stream"
+                key = _build_key(owner_type, int(owner_id), f["filename"])
+                try:
+                    r2_put(key, f["data"], ctype)
+                except Exception as e:  # noqa: BLE001
+                    log(f"erro upload R2: {e}")
+                    return self._json({"error": "Falha ao enviar ao armazenamento."}, 502)
+                att_id = create_attachment(owner_type, int(owner_id),
+                                           _safe_name(f["filename"]), key, ctype, len(f["data"]))
+                salvos.append(_public_att(get_attachment(att_id)))
+            return self._json({"attachments": salvos}, 201)
         return self._json({"error": "rota nao encontrada"}, 404)
 
     def _route_put(self):
@@ -1394,6 +1755,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json({"ok": True})
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "notes":
             delete_note(int(parts[2]))
+            return self._json({"ok": True})
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "attachments":
+            delete_attachment(int(parts[2]))
             return self._json({"ok": True})
         return self._json({"error": "rota nao encontrada"}, 404)
 

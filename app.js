@@ -92,6 +92,12 @@ const ICONS = {
   eye: `<svg viewBox="0 0 24 24" ${S}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeoff: `<svg viewBox="0 0 24 24" ${S}><path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a13.4 13.4 0 0 1-2.2 2.9M6.6 6.6A13.3 13.3 0 0 0 2 12s3.5 7 10 7a10.9 10.9 0 0 0 4.4-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`,
   logout: `<svg viewBox="0 0 24 24" ${S}><path d="M10 17l5-5-5-5M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg>`,
+  paperclip: `<svg viewBox="0 0 24 24" ${S}><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3"/></svg>`,
+  upload: `<svg viewBox="0 0 24 24" ${S}><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>`,
+  download: `<svg viewBox="0 0 24 24" ${S}><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 20h16"/></svg>`,
+  file: `<svg viewBox="0 0 24 24" ${S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>`,
+  image: `<svg viewBox="0 0 24 24" ${S}><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.8"/><path d="m21 15-5-5L5 21"/></svg>`,
+  filepdf: `<svg viewBox="0 0 24 24" ${S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>`,
 };
 function ic(name) { return `<span class="i">${ICONS[name] || ""}</span>`; }
 function injectIcons() {
@@ -392,6 +398,12 @@ function subBadge(t) {
   const done = subs.filter((s) => s.done).length;
   return ` <span class="sub-badge${done === subs.length ? " full" : ""}">☑ ${done}/${subs.length}</span>`;
 }
+function attachBadge(t) {
+  const n = t.attach_count || 0;
+  if (!n) return "";
+  const plural = n > 1 ? "s" : "";
+  return `<span class="attach-badge" title="${n} arquivo${plural} anexado${plural}">${ic("paperclip")}${n}</span>`;
+}
 function statusSelectHTML(t) {
   return `<select class="status-select">
     <option value="aberta"${t.status === "aberta" ? " selected" : ""}>Aberta</option>
@@ -440,7 +452,7 @@ function card(t, metaOpts = {}) {
     ${t.description ? `<div class="card-desc">${esc(t.description)}</div>` : ""}
     ${subtasksHTML(t)}
     ${links ? `<div class="card-links">${links}</div>` : ""}
-    <div class="card-foot">${routineHTML(t)}<button type="button" class="btn-icon card-whats" data-whats="1" title="Gerar recado pro WhatsApp">${ICONS.whatsapp}</button>${statusSelectHTML(t)}</div>`;
+    <div class="card-foot">${routineHTML(t)}${attachBadge(t)}<button type="button" class="btn-icon card-whats" data-whats="1" title="Gerar recado pro WhatsApp">${ICONS.whatsapp}</button>${statusSelectHTML(t)}</div>`;
   wireCard(c, t); addDrag(c, t);
   // ideias vinculadas a esta tarefa/rotina aparecem aqui dentro (post-it)
   if (!isIdea) {
@@ -586,7 +598,8 @@ function openProject(name) { PROJ_OPEN = name; PROJ_TAB = "demandas"; NOTE_OPEN 
 function renderProjectCentral(board) {
   const p = PROJECTS.find((x) => x.name === PROJ_OPEN) || { name: PROJ_OPEN, scope: "", people: "", links: [], id: null };
   const archived = (p.status || "ativo") !== "ativo";
-  const addLabel = PROJ_TAB === "anotacoes" ? "Nova anotação" : PROJ_TAB === "links" ? "Adicionar link" : "Adicionar";
+  const addLabel = PROJ_TAB === "anotacoes" ? "Nova anotação" : PROJ_TAB === "links" ? "Adicionar link"
+    : PROJ_TAB === "arquivos" ? "Enviar arquivo" : "Adicionar";
   el("projHead").innerHTML = `
     <button class="btn-ghost proj-back" id="btnProjBack">${ICONS.back} ${SHOW_ARCHIVED ? "Ocultos" : "Projetos"}</button>
     <div class="proj-central">
@@ -605,6 +618,7 @@ function renderProjectCentral(board) {
         <button class="ptab${PROJ_TAB === "demandas" ? " active" : ""}" data-ptab="demandas">Demandas <span class="ptab-count">${p.task_ativas || ""}</span></button>
         <button class="ptab${PROJ_TAB === "anotacoes" ? " active" : ""}" data-ptab="anotacoes">Anotações</button>
         <button class="ptab${PROJ_TAB === "links" ? " active" : ""}" data-ptab="links">Links <span class="ptab-count">${(p.links || []).length || ""}</span></button>
+        ${p.id != null ? `<button class="ptab${PROJ_TAB === "arquivos" ? " active" : ""}" data-ptab="arquivos">Arquivos</button>` : ""}
       </div>
     </div>`;
   el("btnProjBack").addEventListener("click", () => { PROJ_OPEN = null; render(); });
@@ -627,6 +641,7 @@ function renderProjectCentral(board) {
   el("btnProjAdd").addEventListener("click", () => {
     if (PROJ_TAB === "anotacoes") newNote(p);
     else if (PROJ_TAB === "links") { const t = document.querySelector(".linkhub-add .lh-target"); if (t) t.focus(); }
+    else if (PROJ_TAB === "arquivos") { const inp = document.querySelector("#projFilesBox input[type=file]"); if (inp) inp.click(); }
     else openModal(null, { projeto: p.name });
   });
 
@@ -635,7 +650,15 @@ function renderProjectCentral(board) {
   board.innerHTML = "";
   if (PROJ_TAB === "anotacoes") renderProjectNotes(board, p);
   else if (PROJ_TAB === "links") renderProjectLinks(board, p);
+  else if (PROJ_TAB === "arquivos") renderProjectFiles(board, p);
   else renderProjectTasks(board);
+}
+
+function renderProjectFiles(board, p) {
+  board.className = "board proj-files";
+  board.innerHTML = `<div class="proj-files-wrap"><div id="projFilesBox" class="att-box"></div></div>`;
+  el("empty").classList.add("hidden");
+  mountAttachments("projFilesBox", "project", p.id);
 }
 
 function renderProjectTasks(board) {
@@ -1159,6 +1182,7 @@ function openModal(task, presets = {}) {
     syncRecorField(); syncIdeaField(); updateSubProgress();
   }
   markFormClean();
+  mountAttachments("taskAttachBox", "task", task ? task.id : null);
   openOverlay("modal"); el("title").focus();
 }
 function collectLinks() {
@@ -1192,6 +1216,188 @@ async function deleteTask() {
   if (!confirm("Excluir esta tarefa?")) return;
   await api("DELETE", `/api/tasks/${id}`); clearDraft(id); setDirty(false); closeOverlay("modal"); loadTasks();
 }
+
+// --- Anexos (arquivos no R2, servidos pelo app atrás do login) ------
+const ATT_IMG_RE = /^image\//;
+function fmtBytes(n) {
+  n = +n || 0;
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return Math.round(n / 1024) + " KB";
+  return (n / 1048576).toFixed(1) + " MB";
+}
+function attIsImage(a) {
+  return ATT_IMG_RE.test(a.content_type || "") && a.content_type !== "image/svg+xml";
+}
+function attIconName(a) {
+  const ct = (a.content_type || "").toLowerCase(), fn = (a.filename || "").toLowerCase();
+  if (attIsImage(a)) return "image";
+  if (ct.includes("pdf") || fn.endsWith(".pdf")) return "filepdf";
+  return "file";
+}
+function attUrl(a) { return `/api/attachments/${a.id}/download`; }
+let ATT_CTX = null;   // { ownerType, ownerId, list, refresh } do painel de anexos visível
+function attCardHTML(a) {
+  const img = attIsImage(a);
+  const thumb = img
+    ? `<img class="att-thumb" loading="lazy" src="${attUrl(a)}" alt="">`
+    : `<span class="att-thumb att-thumb-icon">${ICONS[attIconName(a)] || ICONS.file}</span>`;
+  const openAttrs = img
+    ? `data-img="1" data-name="${esc(a.filename)}"`
+    : `target="_blank" rel="noopener"`;
+  return `<div class="att-card" data-att="${a.id}">
+    <a class="att-open" href="${attUrl(a)}" ${openAttrs} title="Abrir">${thumb}</a>
+    <div class="att-meta">
+      <span class="att-name" title="${esc(a.filename)}">${esc(a.filename)}</span>
+      <span class="att-sub">${fmtBytes(a.size)}</span>
+    </div>
+    <div class="att-actions">
+      <a class="btn-icon att-dl" href="${attUrl(a)}" download="${esc(a.filename)}" title="Baixar">${ICONS.download}</a>
+      <button type="button" class="btn-icon att-del" title="Remover">${ICONS.trash}</button>
+    </div>
+  </div>`;
+}
+async function loadAttachments(ownerType, ownerId) {
+  const r = await api("GET", `/api/attachments?owner_type=${ownerType}&owner_id=${ownerId}`);
+  return (r && r.attachments) || [];
+}
+function mountAttachments(container, ownerType, ownerId) {
+  const box = typeof container === "string" ? el(container) : container;
+  if (!box) return;
+  if (!ownerId) {
+    box.innerHTML = `<p class="att-hint">${ICONS.paperclip} Salve primeiro para anexar arquivos.</p>`;
+    ATT_CTX = null;
+    return;
+  }
+  if (CONFIG && CONFIG.storage === false) {
+    box.innerHTML = `<p class="att-hint">Anexos indisponíveis neste ambiente.</p>`;
+    ATT_CTX = null;
+    return;
+  }
+  box.innerHTML = `
+    <div class="att-drop" tabindex="0" role="button" aria-label="Adicionar arquivos">
+      ${ICONS.upload}<span>Arraste aqui ou <u>escolha arquivos</u></span>
+      <input type="file" multiple hidden>
+    </div>
+    <div class="att-list" aria-live="polite"></div>`;
+  const drop = box.querySelector(".att-drop");
+  const input = box.querySelector('input[type="file"]');
+  const list = box.querySelector(".att-list");
+  const paint = (items) => {
+    list.innerHTML = items.length
+      ? items.map(attCardHTML).join("")
+      : `<p class="att-empty">Nenhum arquivo ainda.</p>`;
+    list.querySelectorAll(".att-del").forEach((b) => b.addEventListener("click", async (e) => {
+      const card = e.target.closest(".att-card"); if (!card) return;
+      if (!confirm("Remover este arquivo?")) return;
+      card.classList.add("att-removing");
+      await api("DELETE", `/api/attachments/${card.dataset.att}`);
+      refresh(); toast("Arquivo removido");
+    }));
+    // imagens abrem no lightbox em vez de nova aba
+    list.querySelectorAll(".att-open[data-img]").forEach((a) => a.addEventListener("click", (e) => {
+      e.preventDefault();
+      openLightbox(a.getAttribute("href"), a.dataset.name || "");
+    }));
+  };
+  const refresh = async () => {
+    const items = await loadAttachments(ownerType, ownerId);
+    paint(items);
+    ATT_CTX = { ownerType, ownerId, list, refresh };  // alvo atual do Ctrl+V
+  };
+  const send = (files) => uploadAttachments(ownerType, ownerId, files, list, refresh);
+  drop.addEventListener("click", () => input.click());
+  drop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
+  });
+  input.addEventListener("change", () => { send(input.files); input.value = ""; });
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.add("att-drop-over");
+  }));
+  ["dragleave", "dragend"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("att-drop-over")));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.classList.remove("att-drop-over");
+    if (e.dataTransfer && e.dataTransfer.files) send(e.dataTransfer.files);
+  });
+  refresh();
+}
+function uploadAttachments(ownerType, ownerId, files, listEl, onDone) {
+  const max = (CONFIG && CONFIG.max_upload_mb) || 25;
+  const arr = [...files];
+  if (!arr.length) return;
+  let pending = arr.length;
+  const done = () => { if (--pending === 0) onDone(); };
+  arr.forEach((file) => {
+    if (file.size > max * 1024 * 1024) {
+      toast(`"${file.name}" passa de ${max} MB`, true); done(); return;
+    }
+    const prog = document.createElement("div");
+    prog.className = "att-uploading";
+    prog.innerHTML = `<span class="att-up-name">${esc(file.name)}</span>
+      <span class="att-bar"><span class="att-bar-fill"></span></span>`;
+    listEl.prepend(prog);
+    const fill = prog.querySelector(".att-bar-fill");
+    const fd = new FormData();
+    fd.append("owner_type", ownerType);
+    fd.append("owner_id", ownerId);
+    fd.append("file", file);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/attachments");
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) fill.style.width = ((e.loaded / e.total) * 100).toFixed(0) + "%";
+    });
+    xhr.addEventListener("load", () => {
+      prog.remove();
+      if (!(xhr.status >= 200 && xhr.status < 300)) {
+        let m = "Falha no upload";
+        try { m = JSON.parse(xhr.responseText).error || m; } catch { /* ignore */ }
+        toast(m, true);
+      }
+      done();
+    });
+    xhr.addEventListener("error", () => { prog.remove(); toast("Falha de rede no upload", true); done(); });
+    xhr.send(fd);
+  });
+}
+
+// Lightbox: abre imagem num visualizador em vez de nova aba.
+function openLightbox(src, alt) {
+  let lb = el("lightbox");
+  if (!lb) {
+    lb = document.createElement("div");
+    lb.id = "lightbox";
+    lb.className = "lightbox";
+    lb.innerHTML = `<button class="lightbox-close" aria-label="Fechar">${ICONS.close}</button><img alt="">`;
+    document.body.appendChild(lb);
+    const close = () => lb.classList.remove("show");
+    lb.addEventListener("click", (e) => { if (e.target === lb || e.target.closest(".lightbox-close")) close(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  }
+  const img = lb.querySelector("img");
+  img.src = src; img.alt = alt || "";
+  lb.classList.add("show");
+}
+
+// Colar print (Ctrl+V) envia a imagem da área de transferência como anexo,
+// no painel de anexos que estiver visível (modal de tarefa ou aba do projeto).
+document.addEventListener("paste", (e) => {
+  const ctx = ATT_CTX;
+  if (!ctx || !ctx.list || !document.body.contains(ctx.list)) return;
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  const files = [];
+  for (const it of items) {
+    if (it.kind === "file" && (it.type || "").startsWith("image/")) {
+      const f = it.getAsFile();
+      if (f) {
+        const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+        files.push(new File([f], `colado-${Date.now()}.${ext}`, { type: f.type }));
+      }
+    }
+  }
+  if (!files.length) return;
+  e.preventDefault();
+  uploadAttachments(ctx.ownerType, ctx.ownerId, files, ctx.list, ctx.refresh);
+  toast("Enviando imagem colada…");
+});
 
 // --- Recado pro WhatsApp (IA) ---------------------------------------
 let WA_TASK = null;   // tarefa alvo do recado (do form ou do card)
@@ -1623,6 +1829,12 @@ function applyTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
   localStorage.setItem("theme", t);
   const dark = t === "dark";
+  // Acompanha a barra do navegador (status bar no mobile). Sem isto, os metas
+  // estaticos seguem o SISTEMA e o topo fica "no escuro" ao trocar de tema.
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    m.removeAttribute("media");
+    m.setAttribute("content", dark ? "#000000" : "#F5F5F7");
+  });
   const btn = el("btnTheme");
   if (btn) btn.innerHTML = `${ic(dark ? "sun" : "moon")} ${dark ? "Modo claro" : "Modo noturno"}`;
 }

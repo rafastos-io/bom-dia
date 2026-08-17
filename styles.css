@@ -1172,26 +1172,31 @@ body { background: var(--bg); }
 
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); }
+  /* Topo e tab bar seguem o tema (material claro no claro, escuro no escuro) —
+     comportamento correto de tab bar iOS, e some a sensacao de "ainda noturno". */
   .sidebar {
     height: calc(58px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 14px 0;
-    background: #000; border-bottom: 0;
+    background: var(--glass-strong); color: var(--ink);
+    border-bottom: 1px solid var(--glass-line);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
   }
   .brand { padding: 0; height: 58px; }
+  .brand-name { color: var(--ink); }
   .sidebar-foot { height: 58px; padding: 0; border: 0; }
   .sidebar-foot .nav-item { width: 44px; height: 44px; }
   .nav {
     height: calc(72px + env(safe-area-inset-bottom)); padding: 7px 7px max(7px, env(safe-area-inset-bottom));
-    background: rgba(0, 0, 0, .94); border-top-color: rgba(255,255,255,.12); box-shadow: none;
+    background: var(--glass); border-top: 1px solid var(--glass-line); box-shadow: none;
     -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
   }
-  .nav .nav-item { color: #8e8e93; background: transparent; border-radius: 10px; }
-  .nav .nav-item.active { color: #fff; background: transparent; }
-  .nav .nav-item.active svg { color: #2997ff; }
+  .nav .nav-item { color: var(--muted); background: transparent; border-radius: 10px; }
+  .nav .nav-item.active { color: var(--ink); background: transparent; }
+  .nav .nav-item.active svg { color: var(--blue); }
   .nav .nav-item.active::after {
     content: ""; position: absolute; bottom: 2px; width: 18px; height: 2px;
-    border-radius: 999px; background: #2997ff;
+    border-radius: 999px; background: var(--blue);
   }
-  .sidebar-foot .nav-item:hover { background: #1c1c1e; }
+  .sidebar-foot .nav-item:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
   .content { padding: 42px 22px calc(104px + env(safe-area-inset-bottom)); }
   .dashboard .greeting { font-size: clamp(42px, 11vw, 62px); line-height: .98; }
   .pooh-cta { margin-top: 34px; }
@@ -1243,5 +1248,114 @@ body { background: var(--bg); }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .nav { background: #000; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .nav, .sidebar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* ===================== Anexos (arquivos no R2) ===================== */
+.att-box { display: flex; flex-direction: column; gap: 12px; }
+.att-hint { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.att-hint svg { width: 16px; height: 16px; }
+.att-drop {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 16px; border: 1.5px dashed var(--line); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--muted); font-size: 13.5px; font-weight: 500;
+  cursor: pointer; text-align: center;
+  transition: border-color .18s var(--ease), background .18s var(--ease),
+              transform .12s var(--ease), color .18s var(--ease);
+}
+.att-drop svg { width: 20px; height: 20px; }
+.att-drop u { text-decoration: none; color: var(--blue); font-weight: 600; }
+.att-drop:hover { border-color: var(--blue); color: var(--ink); }
+.att-drop:active { transform: scale(.985); }
+.att-drop:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.att-drop-over { border-color: var(--blue); background: var(--blue-soft); color: var(--ink); transform: scale(1.01); }
+
+.att-list { display: flex; flex-direction: column; gap: 8px; }
+.att-empty { color: var(--muted); font-size: 13px; padding: 2px; }
+.att-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface);
+  animation: att-in .28s var(--ease-out-3);
+}
+.att-open { flex: none; display: block; width: 44px; height: 44px; border-radius: 9px; overflow: hidden; transition: transform .12s var(--ease); }
+.att-open:active { transform: scale(.94); }
+.att-thumb { width: 44px; height: 44px; object-fit: cover; display: block; border-radius: 9px; background: var(--surface-2); }
+.att-thumb-icon { display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.att-thumb-icon svg { width: 22px; height: 22px; }
+.att-meta { flex: 1; min-width: 0; }
+.att-name { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-sub { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
+.att-actions { flex: none; display: flex; gap: 2px; }
+.att-actions .btn-icon { color: var(--muted); }
+.att-actions .btn-icon:hover { color: var(--ink); }
+.att-actions .att-del:hover { color: var(--alta); }
+.att-removing { opacity: .4; pointer-events: none; transition: opacity .2s; }
+.att-uploading {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface-2);
+  animation: att-in .2s var(--ease-out-3);
+}
+.att-up-name { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-bar { height: 5px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.att-bar-fill { display: block; height: 100%; width: 0; background: var(--blue); border-radius: 999px; transition: width .18s var(--ease); }
+.proj-files-wrap { max-width: 660px; }
+@keyframes att-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Clipe + contador no card */
+.attach-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  padding: 2px 4px; border-radius: 6px;
+}
+.attach-badge .i svg { width: 14px; height: 14px; }
+
+/* Lightbox (visualizador de imagem) */
+.lightbox {
+  position: fixed; inset: 0; z-index: 120; display: none;
+  align-items: center; justify-content: center; padding: 24px;
+  background: rgba(0, 0, 0, .82);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.lightbox.show { display: flex; animation: fade .2s var(--ease); }
+.lightbox img {
+  max-width: min(92vw, 1100px); max-height: 88vh; object-fit: contain;
+  border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+  animation: materialize .3s var(--ease-out-3);
+}
+.lightbox-close {
+  position: fixed; top: max(16px, env(safe-area-inset-top)); right: 16px;
+  width: 44px; height: 44px; border: 0; border-radius: 999px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .16); color: #fff;
+  transition: background .15s var(--ease), transform .12s var(--ease);
+}
+.lightbox-close:hover { background: rgba(255, 255, 255, .28); }
+.lightbox-close:active { transform: scale(.92); }
+.lightbox-close svg { width: 22px; height: 22px; }
+
+/* ============ Polimento mobile: modal vira bottom-sheet ============ */
+@media (max-width: 620px) {
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal {
+    max-width: 100%; border-radius: 22px 22px 0 0;
+    padding: 18px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height: 92vh; overflow-y: auto;
+    animation: sheet-up .42s var(--ease-out-3);
+  }
+  .modal::before {
+    content: ""; display: block; width: 38px; height: 5px; border-radius: 999px;
+    background: var(--line); margin: 2px auto 14px; flex: none;
+  }
+  .modal-task { max-height: 92vh; }
+}
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+
+/* ============ Acessibilidade: respeita reducao de movimento ======== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

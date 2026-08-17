@@ -48,11 +48,30 @@ APP_NAME=Bom Dia
 AUTH_USER=Rafastos
 AUTH_PASSWORD=<senha-temporaria>
 AUTH_SECRET=<string-aleatoria-longa> # marque como secret
+
+# Upload de arquivos (Cloudflare R2). Referencie as Shared Variables do Coolify:
+R2_ENDPOINT={{team.R2_ENDPOINT}}
+R2_BUCKET={{team.R2_BUCKET}}
+R2_ACCESS_KEY_ID={{team.R2_ACCESS_KEY_ID}}
+R2_SECRET_ACCESS_KEY={{team.R2_SECRET_ACCESS_KEY}}   # secret
 ```
 
 > `HOST`, `PORT` e `DATA_DIR` já vêm com esses valores no `Dockerfile`; deixá-los
 > aqui é redundante mas explícito. `OPENAI_API_KEY` é obrigatória para a IA e
 > **nunca** é gravada em disco quando vem do ambiente.
+
+### Anexos (Cloudflare R2)
+
+O upload de arquivos em tarefas e projetos usa o bucket `rafastos-storage` (pasta
+`bomdia/`). As credenciais já existem como **Shared Variables (escopo Team)** no
+Coolify — basta **referenciá-las** nas Environment Variables do app Bom Dia com
+`{{team.R2_*}}` (ver bloco acima). Passo único e manual; sem isso o upload fica
+desligado (o resto do app funciona normal).
+
+- Bucket **privado**: o app baixa do R2 e repassa por `/api/attachments/:id/download`,
+  sempre atrás do login. Nada fica público; o endpoint do R2 não é exposto ao navegador.
+- Sem dependências novas: a assinatura S3 (SigV4) é feita com a biblioteca padrão.
+- Limite por arquivo: `MAX_UPLOAD_MB` (default 25). Pasta configurável em `R2_PREFIX`.
 
 ---
 
