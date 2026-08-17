@@ -1337,16 +1337,24 @@ body { background: var(--bg); }
 @media (max-width: 620px) {
   .modal-overlay { align-items: flex-end; padding: 0; }
   .modal {
-    max-width: 100%; border-radius: 22px 22px 0 0;
-    padding: 18px 18px calc(20px + env(safe-area-inset-bottom));
-    max-height: 92vh; overflow-y: auto;
-    animation: sheet-up .42s var(--ease-out-3);
+    max-width: 100%; width: 100%;
+    border-radius: 22px 22px 0 0;
+    padding: 16px 18px calc(18px + env(safe-area-inset-bottom));
+    animation: sheet-up .4s var(--ease-out-3);
   }
+  /* Alcinha de arrastar (grabber) no topo da folha. */
   .modal::before {
     content: ""; display: block; width: 38px; height: 5px; border-radius: 999px;
-    background: var(--line); margin: 2px auto 14px; flex: none;
+    background: var(--line); margin: 2px auto 12px; flex: none;
   }
-  .modal-task { max-height: 92vh; }
+  /* Modais simples rolam a folha inteira. */
+  .modal:not(.modal-task) { max-height: 92vh; overflow-y: auto; }
+  /* Modal de tarefa: altura definida, cabecalho e rodape fixos, so o corpo rola.
+     Sem overflow por fora — senao vira scroll duplo e corta o rodape. */
+  .modal-task { height: 90vh; max-height: 90vh; overflow: hidden; }
+  .modal-task > form { flex: 1 1 auto; min-height: 0; }
+  .modal-task .modal-body { -webkit-overflow-scrolling: touch; }
+  .modal-task .modal-foot { flex: none; }
 }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 
