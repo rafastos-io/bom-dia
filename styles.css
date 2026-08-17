@@ -1178,7 +1178,9 @@ body { background: var(--bg); }
     height: calc(58px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 14px 0;
     background: var(--glass-strong); color: var(--ink);
     border-bottom: 1px solid var(--glass-line);
-    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    /* SEM backdrop-filter aqui: a .nav (tab bar) e filha e usa position:fixed;
+       um filtro no ancestral viraria containing block e jogaria a nav pro topo. */
+    -webkit-backdrop-filter: none; backdrop-filter: none;
   }
   .brand { padding: 0; height: 58px; }
   .brand-name { color: var(--ink); }
