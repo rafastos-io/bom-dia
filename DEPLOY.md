@@ -36,16 +36,18 @@ Recomendadas: `OPENAI_API_KEY`, `OPENAI_MODEL`, `APP_ENV=production`,
 
 ## Banco e backup
 
-- Banco: **Turso** (`bomdia-rafastos-io`, região us-east-1). O SQLite antigo (`bomdia.db`)
-  está preservado fora do container como rollback dos dados.
+- Banco: **Turso** (`bomdia-rafastos-io`, região us-east-1). O SQLite antigo (`bomdia.db`) está
+  arquivado em `C:\Users\rafaa\VIBECODING\BomDia-legacy\` como rollback dos dados.
 - Importação/reimportação: `server/scripts/import-sqlite.ts` (preserva ids, re-executável).
 - Backup: PITR do Turso; export semanal para o R2 é um próximo passo planejado.
 
 ## Rollback
 
 1. No Coolify, redeploy da **imagem anterior** do app (histórico de deployments).
-2. Os dados: o SQLite antigo está intacto; para voltar de vez ao app Python, faça deploy do
-   commit anterior à migração (a `main` guarda todo o histórico).
+2. Os dados: o SQLite antigo (`bomdia.db`) e o código Python/UI antiga estão arquivados em
+   `C:\Users\rafaa\VIBECODING\BomDia-legacy\` (fora do repositório) e o histórico do git guarda
+   todo o código; para voltar de vez ao app Python, faça deploy do commit anterior à migração
+   (`85468d9`) e suba o `bomdia.py` com o `bomdia.db` arquivado.
 
 ## Segurança
 
