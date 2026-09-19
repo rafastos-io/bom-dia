@@ -126,11 +126,16 @@ Só adições. `/api/open` removido.
       e popups (30 PNGs)
 - [ ] **Aguardando aprovação de Rafael** para o cutover (F8)
 
-### F8 — Cutover e limpeza (só com autorização)
-- [ ] Import final → Turso prod; subdomínio de validação
-- [ ] Troca do domínio no Coolify; rollback pronto
-- [ ] 48 h de monitoramento; remover Python/UI legada; arquivar `bomdia.db`;
-      atualizar `README/DEPLOY/AGENTS` + CENTRAL
+### F8 — Cutover e limpeza ✅ cutover concluído (18/09)
+- [x] Import no Turso 1:1 e sem órfãos (dados congelados desde então)
+- [x] `TURSO_*` cadastradas no Coolify (via model, criptografadas) e deploy da `main`
+      (`1377df9` + fix do healthcheck `cc1936f`)
+- [x] Validação: container **healthy**, `/health` v3, `/login` 200, `/api/tasks` 401 sem sessão,
+      bundle servido; captura `screens-v3/producao-login-v3.png`
+- [x] Docs v3 (`README.md`, `DEPLOY.md`) e CENTRAL atualizados
+- [ ] Monitoramento por alguns dias → remover Python/UI legada e arquivar `bomdia.db`
+- [ ] Pendências finas pós-cutover: confirmar diálogos do DS, bottom-sheet universal no mobile,
+      backup semanal Turso → R2, rotacionar chave Runway
 
 ## Protocolo de acompanhamento
 
@@ -224,3 +229,11 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
   popups, Poohzera com IA mockada). Pacote de aprovação em `artifacts/screens-v3/` (+ zip) com
   30 capturas: desktop claro, dark, mobile e popups. **Aguardando o OK de Rafael para o cutover.**
   Pendências finas registradas: confirmações nativas → diálogo do DS e bottom-sheet universal.
+- **F8 — Cutover (18/09/2026)** · Rafael aprovou o pacote de capturas; a `main` recebeu o v3 em
+  `1377df9` e o fix de healthcheck em `cc1936f`. O Coolify publicou (Horizon + webhook OK) e a
+  produção passou a servir o app novo: `/health` v3, `/login` 200, `/api/tasks` 401 sem sessão,
+  container **healthy**, dados 1:1 no Turso. Imprevistos resolvidos no caminho: o healthcheck
+  padrão do Coolify exige `curl` (adicionado ao runtime) e as variáveis `TURSO_*` foram
+  cadastradas via model do Coolify (valores criptografados pela própria aplicação). Legado
+  Python/UI antiga segue no repositório como rollback; remoção e arquivamento do `bomdia.db`
+  ficam para depois do monitoramento, junto das pendências finas.
