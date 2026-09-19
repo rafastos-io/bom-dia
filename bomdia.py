@@ -100,6 +100,31 @@ MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 PUBLIC_FILES = {"index.html", "login.html", "styles.css", "app.js", "favicon.ico", "robots.txt"}
 PUBLIC_DIRS = ("assets",)
 
+# Build do app novo (React). Entra em cena quando existe:
+#  - dist/ na raiz (imagem Docker de producao); ou
+#  - BOMDIA_DIST_DIR apontando para um build (ex.: web/dist no modo local).
+# Sem build, a UI antiga continua sendo servida (modo local intocado).
+_dist_candidates = []
+if _env("BOMDIA_DIST_DIR"):
+    _dist_candidates.append(_env("BOMDIA_DIST_DIR"))
+_dist_candidates.append(os.path.join(BASE_DIR, "dist"))
+DIST_DIRS = tuple(d for d in _dist_candidates if d and os.path.isdir(d))
+
+# MIME explicito para o build (no Windows o registro pode devolver text/plain).
+EXTRA_MIME = {
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css",
+    ".map": "application/json",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+}
+
 
 def log(msg):
     """Log simples em stdout (aparece no Coolify/Docker logs). Nunca logar segredos."""
@@ -1506,7 +1531,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # -- Static (allowlist) --------------------------------------------------
     def _resolve_public(self, url_path):
         """Mapeia a URL para um arquivo publico seguro ou retorna None.
-        Bloqueia path traversal e qualquer arquivo fora da allowlist."""
+        Bloqueia path traversal e qualquer arquivo fora da allowlist.
+        Prioridade: build do app novo (dist/) -> arquivos legados -> SPA."""
         rel = unquote(url_path).lstrip("/")
         if rel in ("", "/"):
             rel = "index.html"
@@ -1514,6 +1540,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         rel = rel.replace("\\", "/")
         if ".." in rel.split("/"):
             return None
+
+        # 1) Build do React: qualquer arquivo dentro de um DIST_DIR
+        for dist in DIST_DIRS:
+            full = os.path.normpath(os.path.join(dist, rel))
+            if os.path.commonpath([full, dist]) != dist:
+                continue
+            if os.path.isfile(full):
+                return full
+
+        # 2) Legado: allowlist explicita (login.html, assets da UI antiga)
         top = rel.split("/", 1)[0]
         if rel in PUBLIC_FILES or top in PUBLIC_DIRS:
             full = os.path.normpath(os.path.join(BASE_DIR, rel))
@@ -1522,15 +1558,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return None
             if os.path.isfile(full):
                 return full
+
+        # 3) SPA: rota sem extensao (ex.: /agenda) cai no index do build
+        if DIST_DIRS and "." not in rel.rsplit("/", 1)[-1]:
+            index = os.path.join(DIST_DIRS[0], "index.html")
+            if os.path.isfile(index):
+                return index
         return None
 
     def _serve_static(self, url_path):
         full = self._resolve_public(url_path)
         if not full:
             return self._json({"error": "nao encontrado"}, 404)
-        ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
-        if full.lower().endswith(".woff2"):
-            ctype = "font/woff2"
+        ext = os.path.splitext(full)[1].lower()
+        ctype = EXTRA_MIME.get(ext) or mimetypes.guess_type(full)[0] or "application/octet-stream"
         try:
             with open(full, "rb") as f:
                 data = f.read()

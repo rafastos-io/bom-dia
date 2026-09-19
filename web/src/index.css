@@ -1,0 +1,63 @@
+@import "tailwindcss";
+@source "../node_modules/@rafastos/ui/dist";
+@source "../node_modules/@rafastos/ui/src";
+
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+@import "@rafastos/ui/styles.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./styles/app-theme.css";
+
+/* Fontes auto-hospedadas: variáveis esperadas pelos tokens --rf-font-* */
+:root {
+  --font-space-grotesk: "Space Grotesk Variable";
+  --font-ibm-plex-mono: "IBM Plex Mono";
+}
+
+/*
+ * Correções temporárias enquanto o pacote 0.1.0-tech.0 não corrige (reportado 16/09/2026):
+ * 1) O minificador manteve só `-webkit-backdrop-filter`, que o Chrome 153+ removeu —
+ *    o vidro (.rf-glass: dialog/drawer/sheet/alert-dialog) ficava translúcido sem blur.
+ * 2) `.rf-glass > :where(*)` força `position: relative` com a mesma especificidade dos
+ *    utilitários; como vem depois, anulava `absolute`/`fixed` (botão ✕ dos diálogos cai
+ *    para o rodapé e o lightbox some).
+ */
+:where(.rf-glass) {
+  backdrop-filter: var(--rf-glass-filter);
+}
+
+.rf-glass > .absolute {
+  position: absolute;
+}
+
+.rf-glass > .fixed {
+  position: fixed;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background-color: var(--rf-selection);
+  }
+}
+
+@layer utilities {
+  /* Rolagem sem barra visível em trilhos horizontais */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

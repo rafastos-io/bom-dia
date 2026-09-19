@@ -22,3 +22,11 @@ __pycache__/
 # Lixo do Windows
 desktop.ini
 Thumbs.db
+
+# Referencias locais e experimentos (nao entram no repo)
+artifacts/
+prototype-hoje/
+
+# Node (cada pacote tem o proprio .gitignore, mas garantimos aqui)
+node_modules/
+

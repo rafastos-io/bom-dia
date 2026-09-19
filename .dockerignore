@@ -1,28 +1,37 @@
 # Nunca entram na imagem: dados, segredos, scripts de desktop e lixo de build.
 .git
 .gitignore
-__pycache__/
-*.pyc
+.opencode/
 *.log
 
 # Dados e segredos (ficam no volume/variaveis, nunca na imagem)
 bomdia*.db
-bomdia.db
 bomdia.db-journal
 bomdia.db-wal
 bomdia.db-shm
 bomdia.db.bak-*
 config.json
 .env
+.env.*
 
 # Recursos exclusivos de Windows / desktop (nao rodam no container)
 *.vbs
 *.bat
 *.pyw
+*.py
+__pycache__/
 desktop.ini
 
-# Docs (opcional; nao precisam ir pra imagem)
-HANDOVER.md
-DEPLOY.md
-README.md
-requirements-local.txt
+# Docs e referencias (nao precisam ir pra imagem)
+*.md
+artifacts/
+prototype-hoje/
+
+# Builds locais (a imagem builda do zero)
+node_modules/
+web/node_modules/
+web/dist/
+web/.audit/
+server/node_modules/
+server/dist/
+server/coverage/

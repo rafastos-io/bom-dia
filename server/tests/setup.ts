@@ -1,0 +1,7 @@
+process.env.APP_ENV = "test"
+process.env.AUTH_USER = "Rafastos"
+process.env.AUTH_PASSWORD = "senha-de-teste"
+process.env.AUTH_SECRET = "segredo-de-teste"
+process.env.OPENAI_API_KEY = ""
+process.env.TURSO_DATABASE_URL = ""
+process.env.BOMDIA_DIST_DIR = "../web/public"

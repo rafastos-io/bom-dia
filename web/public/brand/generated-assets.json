@@ -1,0 +1,87 @@
+{
+  "provider": "Runway Dev",
+  "endpoint": "POST /v1/text_to_image",
+  "updatedAt": "2026-09-18T16:45:49.599Z",
+  "assets": [
+    {
+      "slug": "illus-archive",
+      "taskId": "a060faec-2c31-4d28-8159-e3d020d5b158",
+      "kind": "image",
+      "file": "web/public/brand/illus-archive.png",
+      "model": "gpt_image_2",
+      "ratio": "1920:1920",
+      "recovered": true,
+      "generatedAt": "2026-09-18T16:47:10.650Z"
+    },
+    {
+      "slug": "illus-document",
+      "kind": "image",
+      "file": "web/public/brand/illus-document.png",
+      "model": "gpt_image_2",
+      "ratio": "1920:1920",
+      "prompt": "A minimal 3D white document sheet with soft gray lines standing upright, a small violet circular check badge at its lower right corner, tiny motion strokes around it. Clean minimal 3D render, soft studio lighting, matte materials, subtle soft shadows, high detail, centered, no text, no logos. Isolated on a fully transparent background, no floor, no shadow, no backdrop, no text, no logos, no watermark.",
+      "taskId": "6530b5d0-778b-4db9-96d4-edee38dcf10d",
+      "generatedAt": "2026-09-18T16:45:49.574Z"
+    },
+    {
+      "slug": "mascot-avatar",
+      "taskId": "205dda6c-ce57-47c5-b13d-84b854e83c73",
+      "model": "gpt_image_2",
+      "ratio": "1920:1920",
+      "kind": "image",
+      "file": "web/public/brand/mascot-avatar.png",
+      "recovered": true,
+      "generatedAt": "2026-09-18T16:46:53.063Z"
+    },
+    {
+      "slug": "mascot-checklist",
+      "taskId": "ae99a97b-2862-4e28-b33e-907b01f23cd2",
+      "kind": "image",
+      "file": "web/public/brand/mascot-checklist.png",
+      "model": "gpt_image_2",
+      "ratio": "1920:1920",
+      "recovered": true,
+      "generatedAt": "2026-09-18T16:47:10.650Z"
+    },
+    {
+      "slug": "mascot-phone",
+      "kind": "image",
+      "file": "web/public/brand/mascot-phone.png",
+      "model": "gpt_image_2",
+      "ratio": "1280:1920",
+      "prompt": "@Rafael is a friendly 3D cartoon character: dark curly hair, black rectangular glasses, short beard, warm brown skin, black crew-neck sweater with a small yellow sun emblem on the chest, dark trousers and white sneakers. Same face, same proportions, same colors, Pixar-like clean 3D render, soft studio lighting, matte materials. Full body, standing, holding a smartphone up in his right hand as if about to send a message, smiling at the camera. Full body framing with white sneakers visible. Isolated on a fully transparent background, no floor, no shadow, no backdrop, no text, no logos, no watermark. Keep @Rafael exactly the same character.",
+      "taskId": "3dddca73-a8a7-43a5-baae-df023f3d9308",
+      "generatedAt": "2026-09-18T16:23:50.176Z"
+    },
+    {
+      "slug": "mascot-pockets",
+      "kind": "image",
+      "file": "web/public/brand/mascot-pockets.png",
+      "model": "gpt_image_2",
+      "ratio": "1280:1920",
+      "prompt": "@Rafael is a friendly 3D cartoon character: dark curly hair, black rectangular glasses, short beard, warm brown skin, black crew-neck sweater with a small yellow sun emblem on the chest, dark trousers and white sneakers. Same face, same proportions, same colors, Pixar-like clean 3D render, soft studio lighting, matte materials. Full body, standing relaxed with both hands in his pockets, subtle friendly smile. Full body framing with white sneakers visible. Isolated on a fully transparent background, no floor, no shadow, no backdrop, no text, no logos, no watermark. Keep @Rafael exactly the same character.",
+      "taskId": "8b2552f5-3714-43c4-bfc2-07d102ac0f61",
+      "generatedAt": "2026-09-18T16:23:51.231Z"
+    },
+    {
+      "slug": "mascot-thinking",
+      "taskId": "a41b0bf7-16ce-4310-9cfd-35d610fa7b78",
+      "model": "gpt_image_2",
+      "ratio": "1920:1920",
+      "kind": "image",
+      "file": "web/public/brand/mascot-thinking.png",
+      "recovered": true,
+      "generatedAt": "2026-09-18T16:46:53.062Z"
+    },
+    {
+      "slug": "mascot-thumbsup",
+      "taskId": "73831374-2efa-4f22-803f-c8c074683e26",
+      "kind": "image",
+      "file": "web/public/brand/mascot-thumbsup.png",
+      "model": "gpt_image_2",
+      "ratio": "1920:1920",
+      "recovered": true,
+      "generatedAt": "2026-09-18T16:47:10.648Z"
+    }
+  ]
+}

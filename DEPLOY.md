@@ -1,210 +1,61 @@
-# Deploy do Bom Dia (VPS Ubuntu + Coolify + Docker + Traefik)
+# Deploy — Bom Dia v3
 
-Guia para hospedar em `https://bomdia.rafastos.com.br` mantendo o banco entre
-redeploys. O mesmo código roda localmente no Windows sem alteração.
+Produção: **https://bomdia.rafastos.com.br** (Coolify na VPS pessoal, container `bomdia`).
+Somente o branch **`main`** publica: o webhook do Coolify acompanha a `main` e o Horizon
+processa o build. Push em `feature/*`, `codex/*` etc. **não** atualiza a VPS.
 
----
+## Como o deploy acontece
 
-## 1. Como o app decide "local" x "produção"
+1. Commit + push na `main` (ou merge de PR para a `main`).
+2. Coolify recebe o webhook e enfileira o build do SHA.
+3. O build roda o `Dockerfile` (multi-stage): `web` → `server` → runtime Node enxuto.
+4. O container sobe servindo a SPA + API na porta `9463` (Traefik faz o TLS do domínio).
 
-Uma única variável manda: **`APP_ENV`**.
-
-| Comportamento            | `APP_ENV=local` (default)     | `APP_ENV=production`        |
-|--------------------------|-------------------------------|-----------------------------|
-| Bind (HOST)              | `127.0.0.1`                   | `0.0.0.0`                   |
-| Abre navegador no start  | Sim                           | Não                         |
-| Banco/config (DATA_DIR)  | pasta do projeto              | `/data` (volume)            |
-| Abrir pasta no Explorer  | Funciona                      | Desativado (aviso amigável) |
-
-Sem `APP_ENV`, o app é **local** — por isso seu Windows continua igual.
-
----
-
-## 2. Configuração no Coolify
-
-**Tipo de recurso:** Application → **Dockerfile** (o repositório já tem um).
-
-**Build:** o `Dockerfile` na raiz. Nada mais a configurar.
-
-**Porta exposta / Ports:** `9463`
-> O Traefik do Coolify faz o TLS e encaminha a porta 443 pública para a 9463 do container. Você **não** publica a 9463 na internet diretamente.
-
-**Domínio (FQDN):** `https://bomdia.rafastos.com.br`
-(aponte o DNS `bomdia` para o IP da VPS; o Coolify/Traefik emite o certificado Let's Encrypt).
-
-**Healthcheck:** path `/health` (ou `/api/health`) → responde `{"status":"ok"}`.
-O `Dockerfile` já traz um `HEALTHCHECK` interno também.
-
-### Variáveis de ambiente (aba Environment Variables)
-
-```
-APP_ENV=production
-HOST=0.0.0.0
-PORT=9463
-DATA_DIR=/data
-OPENAI_API_KEY=sk-...          # marque como secret/build-secret
-OPENAI_MODEL=gpt-4.1-mini
-APP_NAME=Bom Dia
-AUTH_USER=Rafastos
-AUTH_PASSWORD=<senha-temporaria>
-AUTH_SECRET=<string-aleatoria-longa> # marque como secret
-
-# Upload de arquivos (Cloudflare R2). Referencie as Shared Variables do Coolify:
-R2_ENDPOINT={{team.R2_ENDPOINT}}
-R2_BUCKET={{team.R2_BUCKET}}
-R2_ACCESS_KEY_ID={{team.R2_ACCESS_KEY_ID}}
-R2_SECRET_ACCESS_KEY={{team.R2_SECRET_ACCESS_KEY}}   # secret
-```
-
-> `HOST`, `PORT` e `DATA_DIR` já vêm com esses valores no `Dockerfile`; deixá-los
-> aqui é redundante mas explícito. `OPENAI_API_KEY` é obrigatória para a IA e
-> **nunca** é gravada em disco quando vem do ambiente.
-
-### Anexos (Cloudflare R2)
-
-O upload de arquivos em tarefas e projetos usa o bucket `rafastos-storage` (pasta
-`bomdia/`). As credenciais já existem como **Shared Variables (escopo Team)** no
-Coolify — basta **referenciá-las** nas Environment Variables do app Bom Dia com
-`{{team.R2_*}}` (ver bloco acima). Passo único e manual; sem isso o upload fica
-desligado (o resto do app funciona normal).
-
-- Bucket **privado**: o app baixa do R2 e repassa por `/api/attachments/:id/download`,
-  sempre atrás do login. Nada fica público; o endpoint do R2 não é exposto ao navegador.
-- Sem dependências novas: a assinatura S3 (SigV4) é feita com a biblioteca padrão.
-- Limite por arquivo: `MAX_UPLOAD_MB` (default 25). Pasta configurável em `R2_PREFIX`.
-
----
-
-## 3. Volume persistente (OBRIGATÓRIO)
-
-Sem volume, o `bomdia.db` vive dentro do container e **some a cada redeploy**.
-
-No Coolify, aba **Storages / Persistent Storage**, adicione:
-
-- **Tipo:** Volume (nomeado) — recomendado
-- **Nome:** `bomdia-data` (ou o que preferir)
-- **Destino (Mount Path):** `/data`   ← **exatamente este caminho**
-
-O app grava `/data/bomdia.db` e `/data/config.json`. Como o volume é externo à
-imagem, **redeploys/rebuilds não apagam os dados**.
-
----
-
-## 4. Redeploy sem perder dados
-
-O Coolify acompanha **somente o branch `main`**. Push em branch de trabalho não é deploy.
-
-1. Faça commit/push no branch de trabalho.
-2. Crie e mergeie o PR para `main` (ou envie diretamente para `main` quando esse for o fluxo
-   explicitamente escolhido).
-3. O webhook GitHub → Coolify cria automaticamente o deploy do novo SHA da `main`.
-4. O container novo sobe montando o **mesmo volume** em `/data`.
-5. `init_db()` roda `CREATE TABLE IF NOT EXISTS` + migrações idempotentes:
-   nada é recriado nem apagado. Seus dados continuam lá.
-
-Para considerar a publicação concluída, confirme que o deploy do SHA da `main` chegou a
-`finished`. Diagnóstico do pipeline:
+Diagnóstico do pipeline:
 
 ```bash
 ssh vps vps-health
 ```
 
-Se Horizon, SSH interno, webhook e autorreparo estiverem `OK`, mas não houver deploy novo,
-compare o branch enviado com a `main` antes de reiniciar qualquer serviço.
+Os itens Horizon, SSH interno, webhook público e autorreparo devem estar `OK`; o último
+deploy aparece no fim do relatório. Compare o SHA exibido com o commit enviado.
 
-Nunca remova/reset o volume `bomdia-data` a menos que queira zerar tudo.
+## Variáveis de ambiente (Coolify → app Bomdia)
 
----
+Obrigatórias: `AUTH_USER`, `AUTH_PASSWORD`, `AUTH_SECRET`, `TURSO_DATABASE_URL`,
+`TURSO_AUTH_TOKEN`, `PORT=9463`.
 
-## 5. Migrar seu `bomdia.db` atual (Windows → VPS)
+Recomendadas: `OPENAI_API_KEY`, `OPENAI_MODEL`, `APP_ENV=production`,
+`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PREFIX`,
+`MAX_UPLOAD_MB`.
 
-O banco é um arquivo único. Passo a passo seguro:
+- Sem `TURSO_*`, o app sobe com um banco vazio local no container (não use em produção).
+- Sem as quatro `R2_*`, o painel de anexos some (o resto funciona).
+- `OPENAI_API_KEY` no ambiente tem prioridade e **nunca** é gravada no banco.
+- Segredos são cadastrados apenas no Coolify (ou Shared Variables). Nunca no repositório.
 
-1. **No Windows, feche o Bom Dia** (feche a bandeja / a janela) para não copiar
-   com escrita a meio. Ideal: gere uma cópia consistente:
-   ```bash
-   python -c "import sqlite3; s=sqlite3.connect('bomdia.db'); d=sqlite3.connect('bomdia-backup.db'); s.backup(d); d.close(); s.close()"
-   ```
-   Isso cria `bomdia-backup.db` íntegro (mesmo com o app aberto).
+## Banco e backup
 
-2. **Envie o arquivo para a VPS** (via `scp` do PowerShell/terminal):
-   ```bash
-   scp bomdia-backup.db usuario@IP_DA_VPS:/tmp/bomdia.db
-   ```
+- Banco: **Turso** (`bomdia-rafastos-io`, região us-east-1). O SQLite antigo (`bomdia.db`)
+  está preservado fora do container como rollback dos dados.
+- Importação/reimportação: `server/scripts/import-sqlite.ts` (preserva ids, re-executável).
+- Backup: PITR do Turso; export semanal para o R2 é um próximo passo planejado.
 
-3. **Copie para dentro do volume** do container. Descubra o nome/servico e
-   copie para `/data`:
-   ```bash
-   # no host da VPS:
-   docker ps                      # ache o container do bomdia
-   docker cp /tmp/bomdia.db <container_id>:/data/bomdia.db
-   ```
-   Alternativa (direto no volume nomeado):
-   ```bash
-   docker volume inspect bomdia-data   # veja o Mountpoint
-   sudo cp /tmp/bomdia.db /var/lib/docker/volumes/<mountpoint>/_data/bomdia.db
-   ```
+## Rollback
 
-4. **Reinicie o container** (Restart no Coolify) para reabrir o banco novo.
-   Confira em `https://bomdia.rafastos.com.br` que suas tarefas apareceram.
+1. No Coolify, redeploy da **imagem anterior** do app (histórico de deployments).
+2. Os dados: o SQLite antigo está intacto; para voltar de vez ao app Python, faça deploy do
+   commit anterior à migração (a `main` guarda todo o histórico).
 
-> Se existirem `bomdia.db-wal`/`bomdia.db-shm` no Windows, o comando de backup
-> do passo 1 já consolida tudo no arquivo — copie só o `.db`.
+## Segurança
 
----
+- Login por sessão (cookie `HttpOnly`, `SameSite=Lax`, `Secure` fora de localhost) com
+  rate-limit no `POST /login`.
+- Anexos privados no R2, entregues por `/api/attachments/:id/download` atrás da sessão.
+- Nenhuma chave no front; uploads com limite de tamanho.
+- Camada extra recomendada no domínio: **Cloudflare Access** (policy de e-mail) ou Basic Auth
+  do Traefik.
 
-## 6. Backup do banco em produção
+## Modo local
 
-Banco em `/data/bomdia.db`. Fazer cópia **consistente** (sem parar o app):
-
-```bash
-# no host da VPS, gera um snapshot integro do banco em uso:
-docker exec <container_id> python -c \
-  "import sqlite3; s=sqlite3.connect('/data/bomdia.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d); d.close(); s.close()"
-docker cp <container_id>:/data/backup.db ./bomdia-$(date +%F).db
-```
-
-**Restaurar:** pare o container, substitua `/data/bomdia.db` pela cópia, suba de novo.
-
-**Periódico:** agende um cron no host rodando o comando acima e envie o arquivo
-para armazenamento externo (ex.: Cloudflare R2, S3, `rclone`). O projeto já
-deixa o banco como arquivo único e portátil — basta copiá-lo.
-
----
-
-## 7. Segurança / exposição pública (IMPORTANTE)
-
-O Bom Dia é um organizador **pessoal** e agora inclui um login temporário no
-próprio servidor. Todas as páginas e APIs de dados exigem sessão; apenas
-`/health` e a página de login ficam públicas. A senha não é enviada ao
-JavaScript e o cookie é `HttpOnly`, `SameSite=Lax` e `Secure` em produção.
-
-Cadastre `AUTH_SECRET` como segredo no Coolify. Se ele não for definido, o app
-gera um segredo novo ao iniciar e todas as sessões abertas são encerradas a cada
-restart. Troque `AUTH_PASSWORD` assim que quiser revogar os acessos existentes.
-
-Como essa é uma barreira provisória, uma camada adicional continua recomendada:
-
-- **Cloudflare Access** (recomendado): coloque o domínio atrás do Cloudflare e
-  crie uma policy de e-mail (só `raafastos@gmail.com` entra). Simples e forte.
-- **Basic Auth do Traefik/Coolify:** pode ser habilitado como segunda barreira
-  pelo middleware do serviço.
-
-O app já ajuda: serve **apenas** os arquivos públicos (`index.html`, `styles.css`,
-`app.js`, `assets/`). Código, banco e `config.json` **não são baixáveis**.
-
----
-
-## 8. Checklist rápido
-
-- [ ] DNS `bomdia` → IP da VPS
-- [ ] App no Coolify via Dockerfile, porta `9463`
-- [ ] Domínio `https://bomdia.rafastos.com.br` com TLS (Traefik)
-- [ ] Volume `bomdia-data` montado em `/data`
-- [ ] Variáveis de ambiente cadastradas (com `OPENAI_API_KEY` como secret)
-- [ ] Healthcheck `/health`
-- [ ] `AUTH_SECRET` e credenciais cadastrados como secrets
-- [ ] Proteção adicional (Cloudflare Access / Basic Auth), se desejada
-- [ ] `bomdia.db` migrado para `/data` e testado
-- [ ] Alterações mergeadas na `main` (push em feature branch não publica)
-- [ ] Deploy automático do SHA da `main` concluído como `finished`
+Descontinuado na v3 (sem bandeja/porta 9463 no Windows). Para desenvolvimento, veja o `README.md`.

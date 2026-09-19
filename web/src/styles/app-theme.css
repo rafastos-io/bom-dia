@@ -1,0 +1,92 @@
+/*
+ * Camada de tema do Bom Dia v3 — sobrescreve os papéis --rf-* com a paleta dos
+ * mockups (FINAL - DESKTOP LIGHT) e define tokens do app (rail, IA, dots).
+ * Regra do DS: personalizar só por tokens no CSS do consumidor.
+ */
+
+:root,
+html[data-theme="dark"] {
+  --rf-bg: #0a0e17;
+  --rf-surface: #101624;
+  --rf-surface-elevated: #151c2c;
+  --rf-text: #f8fafc;
+  --rf-text-muted-foreground: #9aa8bd;
+  --rf-border: color-mix(in srgb, #94a3b8 18%, transparent);
+  --rf-action: #f8fafc;
+  --rf-action-foreground: #0b0f19;
+  --rf-action-soft: color-mix(in srgb, #94a3b8 16%, transparent);
+  --rf-hover: #151c2c;
+  --rf-focus: #a78bfa;
+  --rf-success: #4ade80;
+  --rf-warning: #fbbf24;
+  --rf-error: #fb7185;
+
+  --app-rail: #0b1220;
+  --app-rail-border: color-mix(in srgb, #94a3b8 14%, transparent);
+  --app-rail-muted: #7c8aa5;
+  --app-rail-active-bg: #1b2437;
+  --app-rail-active-fg: #f8fafc;
+  --app-ai: #a78bfa;
+  --app-ai-soft: color-mix(in srgb, #8b5cf6 24%, transparent);
+  --app-dot-green: #4ade80;
+  --app-dot-violet: #a78bfa;
+  --app-dot-pink: #fb7185;
+  --app-dot-amber: #fbbf24;
+  --app-dot-blue: #60a5fa;
+  --app-shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.35);
+  --app-shadow-pop: 0 16px 48px rgb(0 0 0 / 0.5);
+}
+
+html[data-theme="light"] {
+  --rf-bg: #f3f5fa;
+  --rf-surface: #ffffff;
+  --rf-surface-elevated: #f8fafc;
+  --rf-text: #0f172a;
+  --rf-text-muted-foreground: #5b677a;
+  --rf-border: #e5e7eb;
+  --rf-action: #0b0f19;
+  --rf-action-foreground: #ffffff;
+  --rf-action-soft: #eef2f7;
+  --rf-hover: #f1f5f9;
+  --rf-focus: #7c3aed;
+  --rf-success: #15803d;
+  --rf-warning: #b45309;
+  --rf-error: #be123c;
+
+  /* Modais/popups opacos como nos mockups (o DS usa vidro translúcido). */
+  --rf-glass-bg: var(--rf-surface);
+  --rf-glass-fallback: var(--rf-surface);
+
+  --app-rail: #0b1220;
+  --app-rail-border: transparent;
+  --app-rail-muted: #8ea0bd;
+  --app-rail-active-bg: #1c2740;
+  --app-rail-active-fg: #ffffff;
+  --app-ai: #7c3aed;
+  --app-ai-soft: #ede9fe;
+  --app-dot-green: #22c55e;
+  --app-dot-violet: #8b5cf6;
+  --app-dot-pink: #ec4899;
+  --app-dot-amber: #f59e0b;
+  --app-dot-blue: #3b82f6;
+  --app-shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 10px 30px rgb(15 23 42 / 0.07);
+  --app-shadow-pop: 0 20px 50px rgb(15 23 42 / 0.18);
+}
+
+@layer utilities {
+  .app-card {
+    background: var(--rf-surface);
+    border-radius: var(--rf-radius-panel, 18px);
+    box-shadow: var(--app-shadow-card);
+  }
+
+  .app-rail {
+    background: var(--app-rail);
+    color: var(--app-rail-muted);
+  }
+
+  .app-pill-active {
+    background: var(--rf-action);
+    color: var(--rf-action-foreground);
+  }
+}

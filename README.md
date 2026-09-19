@@ -1,65 +1,75 @@
-# ☀️ Bom Dia
+# Bom Dia
 
-Organizador pessoal de demandas — 100% local, banco no próprio computador, sem nuvem.
+Organizador pessoal de demandas — cinco áreas (**Hoje, Agenda, Rotina, Ideias, Projetos**),
+captura com IA (**Poohzera**) e centrais de projeto com notas, links e arquivos.
 
-Feito pra resolver um problema específico: demandas picadas do dia a dia que caem no esquecimento
-e só são feitas quando cobradas. Você liga o PC, abre o **Bom Dia**, e ele já te mostra o que tem
-pra fazer.
+Aplicação de uso pessoal, publicada na VPS com Coolify em
+[bomdia.rafastos.com.br](https://bomdia.rafastos.com.br). O modo local antigo (bandeja/porta
+9463 no Windows) foi descontinuado na v3 — existe apenas o ambiente hospedado, além do
+ambiente de desenvolvimento.
 
-## Recursos
+## Stack (v3)
 
-- **Nova demanda** com título, prioridade, prazo, quem pediu, pra quem enviar e descrição.
-- **Links importantes** de dois tipos:
-  - 🔗 **Web** — abre no navegador.
-  - 📁 **Pasta** — cola o caminho de uma pasta do PC e, ao clicar, ela **abre no Explorer**.
-    (Só funciona por rodar localmente.)
-- **3 modos de visualização**: Cards, Lista e Kanban (com arrastar-e-soltar entre colunas).
-- **Agenda (calendário)**: visão mensal das demandas pelos prazos. Clique numa demanda para editar,
-  ou num dia vazio para criar já com aquela data. Hoje em destaque, atrasadas marcadas em vermelho.
-- **Subtarefas**: quebre uma demanda em passos (checklist). O card mostra o progresso e deixa marcar
-  cada passo direto; a lista mostra um selo `☑ 2/3`. O assistente de IA agrupa passos de um mesmo
-  entregável como subtarefas — em vez de criar vários itens ou um projeto só pra segurá-los.
-- **Assistente que pergunta o que faltou**: no "Organizar meu dia", depois de ler seu texto a IA
-  mostra só as perguntas do que ficou em aberto — projeto (sugerindo os existentes), prazo, links —
-  antes de criar. Você completa o cadastro numa rodada rápida, estilo assistente de verdade.
-- **Projetos como entidade**: cada projeto tem vida própria — **escopo**, **envolvidos** e **links
-  fixos**. Na aba Projetos você cria projetos (não só tarefas), **minimiza** cada um, e **abre** a
-  central isolada: um espaço só daquele projeto, com tudo à mão e só as demandas dele. Deep-link
-  `?proj=Nome`. Dentro da central, sub-abas **Demandas · Anotações · Links**:
-  - **Anotações** — bloco de notas do projeto, separado por “arquivos” (várias anotações nomeadas).
-  - **Canalizador de links** — reúne todos os links do projeto num lugar só, à mão.
-- **Filtros**: status, prioridade, só atrasadas, e ordenação (prioridade & prazo / prazo / recentes / A–Z).
-- **Roda na bandeja do Windows** — ícone de sol ao lado do relógio, sem janela de terminal.
+| Camada | Tecnologia |
+| --- | --- |
+| Front | React 19 + Vite 8 + TypeScript + Tailwind 4 + `@rafastos/ui` (tarball vendorizado) |
+| API | Node 22 + Hono + TypeScript |
+| Banco | Turso (libSQL) + Drizzle ORM |
+| Arquivos | Cloudflare R2 (privado, entregue por proxy autenticado) |
+| IA | OpenAI (extração/perguntas/revisão e recados de WhatsApp) |
+| Deploy | Docker multi-stage + Coolify (`main` apenas) |
 
-## Stack
+## Estrutura
 
-Python puro (biblioteca padrão: `http.server` + `sqlite3`) no back-end, HTML/CSS/JS na interface.
-Único extra: `pystray` + `pillow` para o ícone da bandeja.
-
-## Interface Bom Dia 2
-
-A interface segue um cockpit editorial: menu preto estrutural, canvas claro, tipografia do sistema
-e azul reservado para ações e estados. No celular, a navegação principal fica fixa na parte inferior,
-o botão de captura permanece ao alcance do polegar e todo o conteúdo funciona sem rolagem lateral
-desde 320 px. Movimento, transparência e contraste respeitam as preferências de acessibilidade do
-sistema operacional.
-
-```bash
-pip install pystray pillow
+```
+web/      SPA (Vite) — build gera dist/
+server/   API Hono — /api/*, /login, /health e estáticos
+           scripts/import-sqlite.ts — importa o SQLite legado para o Turso
+Dockerfile  build multi-stage (web -> server -> runtime)
 ```
 
-## Como usar
+## Desenvolvimento
 
-- **Bandeja (recomendado):** duplo clique em `Bom Dia (bandeja).vbs`. Aparece o ícone de sol ☀️
-  ao lado do relógio. Clique nele (ou botão direito → *Abrir Bom Dia*) para abrir. *Sair* encerra.
-- **Modo terminal (debug):** `Bom Dia.bat` — abre com janela preta mostrando logs/erros.
+```bash
+npm run dev:server     # API em :9463 (tsx watch)
+npm run dev:web        # SPA em :5199 (proxy de /api para :9463)
+```
 
-O app sobe em `http://localhost:9463`. O banco fica em `bomdia.db` (na mesma pasta).
+Sem `TURSO_DATABASE_URL`, o server usa um arquivo libSQL local (`server/data/bomdia.db`) —
+bom para desenvolver e testar. Para usar os dados reais, defina as variáveis do Turso.
 
-Na VPS, o acesso passa por um login temporário validado pelo servidor. Configure
-`AUTH_USER`, `AUTH_PASSWORD` e `AUTH_SECRET` nas variáveis de ambiente; consulte
-`DEPLOY.md` para o passo a passo do Coolify.
+```bash
+npm run typecheck      # web + server
+npm run lint           # web + server
+npm run test           # testes do server (Vitest)
+npm run build:web      # build da SPA
+npm run build:server   # build da API
+```
 
-## Backup
+## Variáveis de ambiente (server)
 
-É só copiar o arquivo `bomdia.db`. Ele guarda todas as suas demandas.
+| Variável | Para quê |
+| --- | --- |
+| `PORT` | Porta HTTP (default 9463) |
+| `AUTH_USER` / `AUTH_PASSWORD` / `AUTH_SECRET` | Login e assinatura da sessão (cookie HttpOnly) |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Banco em produção |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | IA (a chave de ambiente tem prioridade e nunca é gravada) |
+| `R2_ENDPOINT` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Anexos (sem as 4, o upload some da UI) |
+| `R2_PREFIX` / `MAX_UPLOAD_MB` | Pasta e limite de upload (default `bomdia`, 25 MB) |
+
+Segredos ficam **somente** no Coolify (produção) ou no ambiente local — nunca no repositório.
+
+## Deploy
+
+Publicação é feita pelo Coolify a partir do branch `main` (ver `DEPLOY.md` e `AGENTS.md`).
+Push em qualquer outro branch não publica.
+
+## Importar dados do app antigo
+
+```bash
+cd server
+npx tsx scripts/import-sqlite.ts --source ../bomdia.db --target file:./data/bomdia.db --dry-run
+```
+
+Sem `--dry-run`, importa preservando ids (re-executável). Para o Turso, use
+`--target $env:TURSO_DATABASE_URL` com `TURSO_AUTH_TOKEN` no ambiente.
