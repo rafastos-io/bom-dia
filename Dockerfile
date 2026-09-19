@@ -17,6 +17,10 @@ COPY server/ ./
 RUN npm run build
 
 FROM node:22-slim AS runtime
+# curl: o Coolify usa curl/wget no healthcheck padrao do container.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /app
 COPY server/package.json server/package-lock.json ./
