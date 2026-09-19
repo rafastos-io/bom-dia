@@ -14,9 +14,7 @@ beforeAll(async () => {
   const { createApp } = await import("../src/app.js")
   const database = createDatabase(`file:${join(dir, "test.db")}`)
   client = database.client
-  await ensureSchema(async (statement) => {
-    await client.execute(statement)
-  })
+  await ensureSchema(client)
   app = createApp(database.db)
 })
 
@@ -168,5 +166,75 @@ describe("tasks", () => {
     expect(res.status).toBe(502)
     const body = (await res.json()) as { error: string }
     expect(body.error).toContain("Chave da OpenAI")
+  })
+
+  it("grava completed_at ao concluir e limpa ao reabrir", async () => {
+    const cookie = await login()
+    const created = await app.request("/api/tasks", {
+      method: "POST",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({ title: "Fluxo de conclusao", tipo: "tarefa" }),
+    })
+    const { id } = (await created.json()) as { id: number }
+
+    const list = async () =>
+      (await (await app.request("/api/tasks", { headers: authHeaders(cookie) })).json()) as Array<{
+        id: number
+        completed_at: string | null
+      }>
+
+    await app.request(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({ status: "concluida" }),
+    })
+    expect((await list()).find((task) => task.id === id)?.completed_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T/,
+    )
+
+    await app.request(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({ status: "aberta" }),
+    })
+    expect((await list()).find((task) => task.id === id)?.completed_at).toBe("")
+  })
+
+  it("tarefa recorrente gera a proxima ocorrencia ao concluir", async () => {
+    const cookie = await login()
+    const created = await app.request("/api/tasks", {
+      method: "POST",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({
+        title: "Semanal teste",
+        tipo: "tarefa",
+        recorrencia: "semanal",
+        due_date: "2026-09-18",
+        subtasks: ["passo"],
+      }),
+    })
+    const { id } = (await created.json()) as { id: number }
+
+    await app.request(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({ status: "concluida" }),
+    })
+
+    const list = (await (
+      await app.request("/api/tasks", { headers: authHeaders(cookie) })
+    ).json()) as Array<{
+      id: number
+      title: string
+      status: string
+      due_date: string
+      subtasks: { title: string; done: number }[]
+    }>
+    const next = list.find((task) => task.title === "Semanal teste" && task.id !== id)
+    expect(next).toBeTruthy()
+    expect(next?.status).toBe("aberta")
+    expect(next?.due_date).toBe("2026-09-25")
+    expect(next?.subtasks[0]?.title).toBe("passo")
+    expect(next?.subtasks[0]?.done).toBe(0)
   })
 })

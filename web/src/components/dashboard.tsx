@@ -2,6 +2,7 @@ import { Button } from "@rafastos/ui/button"
 import { CalendarDays, ChevronRight, CircleCheck, Flag, Layers, Plus, Sparkles } from "lucide-react"
 import { useMemo } from "react"
 import { StatusDonut, WeeklyDueChart } from "@/components/app/charts"
+import { WeeklyReview } from "@/components/app/weekly-review"
 import { Dot, toneFromKey } from "@/components/app/dot"
 import { KpiCard } from "@/components/app/kpi-card"
 import { Panel } from "@/components/app/panel"
@@ -11,6 +12,7 @@ import { useAiStatus, useProjects, useTasks } from "@/lib/queries"
 import {
   archivedIndex,
   fmtDate,
+  fmtMinutes,
   greetWord,
   isLate,
   isTaskHidden,
@@ -105,6 +107,20 @@ export function Dashboard({
         lateCount: late.length,
       }
     }, [tasks.data, projects.data, status.data?.name])
+
+  const weekEffort = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    const limit = new Date()
+    limit.setDate(limit.getDate() + 7)
+    const limitIso = limit.toISOString().slice(0, 10)
+    return visible
+      .filter((task) => task.status !== "concluida")
+      .filter((task) => {
+        const due = (task.due_date || "").slice(0, 10)
+        return due >= today && due <= limitIso
+      })
+      .reduce((sum, task) => sum + (task.estimate_min ?? 0), 0)
+  }, [visible])
 
 
   return (
@@ -242,7 +258,11 @@ export function Dashboard({
       <div className="grid gap-rf-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
         <Panel
           title="Prazos dos próximos 7 dias"
-          description="O que vence nesta semana (demandas não concluídas)."
+          description={
+            weekEffort
+              ? `O que vence nesta semana · ≈${fmtMinutes(weekEffort)} previstas`
+              : "O que vence nesta semana (demandas não concluídas)."
+          }
         >
           <WeeklyDueChart tasks={visible} />
         </Panel>
@@ -250,6 +270,13 @@ export function Dashboard({
           <StatusDonut tasks={visible} />
         </Panel>
       </div>
+
+      <Panel
+        title="Revisão da semana"
+        description="Fluxo dos últimos 7 dias — o que entrou, o que saiu e em quanto tempo."
+      >
+        <WeeklyReview tasks={visible} />
+      </Panel>
 
       <div className="flex justify-center">
         <button

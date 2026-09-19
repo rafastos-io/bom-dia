@@ -20,6 +20,7 @@ import { Separator } from "@rafastos/ui/separator"
 import { Spinner } from "@rafastos/ui/spinner"
 import { Textarea } from "@rafastos/ui/textarea"
 import {
+  Copy,
   Folder,
   GripVertical,
   Link as LinkIcon,
@@ -33,6 +34,7 @@ import { Reorder } from "motion/react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Attachments } from "@/components/attachments"
+import { Chip } from "@/components/app/chip"
 import { useConfirm } from "@/components/app/confirm"
 import { Mascot } from "@/components/app/mascot"
 import { useOverlays } from "@/components/overlay-provider"
@@ -72,11 +74,18 @@ type FormState = {
   links: LinkDraft[]
   subtasks: SubtaskDraft[]
   ideaLinks: IdeaLinkDraft[]
+  estimate_min: number
 }
 
 export type TaskFormPresets = Partial<FormState>
 
 let UID = 0
+
+function isoOffset(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
 const uid = () => ++UID
 
 const draftKey = (taskId: number | null) => `bomdia_draft_${taskId ?? "novo"}`
@@ -96,6 +105,7 @@ function emptyState(presets?: Partial<FormState>): FormState {
     links: [],
     subtasks: [],
     ideaLinks: [],
+    estimate_min: 0,
     ...presets,
   }
 }
@@ -119,6 +129,7 @@ function stateFromTask(task: Task): FormState {
       done: Boolean(s.done),
     })),
     ideaLinks: (task.idea_links || []).map((l) => ({ ...l })),
+    estimate_min: task.estimate_min ?? 0,
   }
 }
 
@@ -155,6 +166,7 @@ function snapshotOf(state: FormState) {
     links: state.links.map((l) => ({ kind: l.kind, label: l.label, target: l.target })),
     subtasks: state.subtasks.map((s) => ({ title: s.title, done: s.done })),
     ideaLinks: state.ideaLinks.map(ideaLinkKey).sort(),
+    estimate_min: state.estimate_min,
   }
 }
 
@@ -286,7 +298,8 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
       subtasks: form.subtasks
         .map((s) => ({ title: s.title.trim(), done: s.done ? (1 as const) : (0 as const) }))
         .filter((s) => s.title),
-      recorrencia: form.tipo === "rotina" ? form.recorrencia : "",
+      recorrencia: form.recorrencia,
+      estimate_min: form.estimate_min,
     }
     if (form.tipo === "ideia") {
       payload.idea_links = form.ideaLinks.map((l) => ({
@@ -329,6 +342,46 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
       onOpenChange(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não deu pra excluir")
+    }
+  }
+
+  /** Cria uma cópia da tarefa salva (subtarefas sem check, links e vínculos). */
+  async function duplicate() {
+    if (!task) return
+    try {
+      await saveTask.mutateAsync({
+        payload: {
+          title: `${task.title} (cópia)`,
+          tipo: task.tipo,
+          projeto: task.projeto || "",
+          priority: task.priority,
+          status: "aberta",
+          due_date: task.due_date || "",
+          requested_by: task.requested_by || "",
+          send_to: task.send_to || "",
+          description: task.description || "",
+          recorrencia: task.recorrencia || "",
+          subtasks: (task.subtasks ?? []).map((sub) => ({ title: sub.title, done: 0 as const })),
+          links: (task.links ?? []).map((link) => ({
+            kind: link.kind,
+            label: link.label ?? "",
+            target: link.target,
+          })),
+          ...(task.tipo === "ideia"
+            ? {
+                idea_links: (task.idea_links ?? []).map((link) => ({
+                  target_type: link.target_type,
+                  target_id: link.target_id,
+                })),
+              }
+            : {}),
+          estimate_min: task.estimate_min ?? 0,
+        },
+      })
+      toast("Tarefa duplicada")
+      onOpenChange(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não deu pra duplicar")
     }
   }
 
@@ -434,6 +487,31 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
               </div>
             </div>
 
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rf-caption text-muted-foreground">Prazo rápido:</span>
+              <Chip
+                active={form.due_date === isoOffset(0)}
+                onClick={() => set("due_date", isoOffset(0))}
+              >
+                Hoje
+              </Chip>
+              <Chip
+                active={form.due_date === isoOffset(1)}
+                onClick={() => set("due_date", isoOffset(1))}
+              >
+                Amanhã
+              </Chip>
+              <Chip
+                active={form.due_date === isoOffset(7)}
+                onClick={() => set("due_date", isoOffset(7))}
+              >
+                Próx. semana
+              </Chip>
+              {form.due_date ? (
+                <Chip onClick={() => set("due_date", "")}>Limpar</Chip>
+              ) : null}
+            </div>
+
             <div className="space-y-1.5">
               <label className="rf-caption font-medium text-foreground" htmlFor="task-status">
                 Status
@@ -449,12 +527,32 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
               </NativeSelect>
             </div>
 
-            {form.tipo === "rotina" ? (
+            <div className="space-y-1.5">
+              <label className="rf-caption font-medium text-foreground" htmlFor="task-estimate">
+                Estimativa <span className="font-normal text-muted-foreground">(opcional)</span>
+              </label>
+              <NativeSelect
+                id="task-estimate"
+                value={String(form.estimate_min)}
+                onChange={(event) => set("estimate_min", Number(event.target.value))}
+              >
+                <NativeSelectOption value="0">Sem estimativa</NativeSelectOption>
+                <NativeSelectOption value="15">15 min</NativeSelectOption>
+                <NativeSelectOption value="30">30 min</NativeSelectOption>
+                <NativeSelectOption value="60">1 hora</NativeSelectOption>
+                <NativeSelectOption value="120">2 horas</NativeSelectOption>
+                <NativeSelectOption value="240">4 horas</NativeSelectOption>
+              </NativeSelect>
+            </div>
+
+            {form.tipo === "rotina" || form.tipo === "tarefa" ? (
               <div className="space-y-1.5">
                 <label className="rf-caption font-medium text-foreground" htmlFor="task-recor">
                   Recorrência{" "}
                   <span className="font-normal text-muted-foreground">
-                    (repete sozinha; o check zera na virada)
+                    {form.tipo === "rotina"
+                      ? "(repete sozinha; o check zera na virada)"
+                      : "(ao concluir, gera a próxima automaticamente)"}
                   </span>
                 </label>
                 <NativeSelect
@@ -716,6 +814,17 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
         {task ? (
           <Button type="button" variant="ghost" size="sm" onClick={openWhatsapp}>
             <MessageCircle aria-hidden /> Recado
+          </Button>
+        ) : null}
+        {task ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={saveTask.isPending}
+            onClick={() => void duplicate()}
+          >
+            <Copy aria-hidden /> Duplicar
           </Button>
         ) : null}
         <div className="flex-1" />

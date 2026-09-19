@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { AssistantDialog } from "./assistant-dialog"
 import { ProjectDialog } from "./project-dialog"
 import { TaskDialog, type TaskFormPresets } from "./task-dialog"
 import { WhatsappDialog } from "./whatsapp-dialog"
@@ -16,6 +17,7 @@ type OverlayContextValue = {
   openTask: (taskId: number | null, presets?: TaskFormPresets) => void
   openWhatsapp: (task: Task) => void
   openProject: (project: Project | null, onDeleted?: () => void) => void
+  openAssistant: () => void
 }
 
 const OverlayContext = createContext<OverlayContextValue | null>(null)
@@ -35,6 +37,7 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
     onDeleted?: () => void
     seq: number
   }>({ open: false, project: null, seq: 0 })
+  const [assistantState, setAssistantState] = useState({ open: false, seq: 0 })
 
   const openTask = useCallback(
     (taskId: number | null, presets?: TaskFormPresets) =>
@@ -58,9 +61,14 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const openAssistant = useCallback(
+    () => setAssistantState((current) => ({ open: true, seq: current.seq + 1 })),
+    [],
+  )
+
   const value = useMemo(
-    () => ({ openTask, openWhatsapp, openProject }),
-    [openTask, openWhatsapp, openProject],
+    () => ({ openTask, openWhatsapp, openProject, openAssistant }),
+    [openAssistant, openTask, openWhatsapp, openProject],
   )
 
   const editing =
@@ -89,6 +97,11 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
         project={projectState.project}
         onOpenChange={(open) => setProjectState((current) => ({ ...current, open }))}
         onDeleted={projectState.onDeleted}
+      />
+      <AssistantDialog
+        key={`assistant-${assistantState.seq}`}
+        open={assistantState.open}
+        onOpenChange={(open) => setAssistantState((current) => ({ ...current, open }))}
       />
     </OverlayContext.Provider>
   )

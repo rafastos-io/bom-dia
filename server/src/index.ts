@@ -7,9 +7,7 @@ import { ensureSchema } from "./db/migrate.js"
 
 const { client, db } = createDatabase()
 
-await ensureSchema(async (statement) => {
-  await client.execute(statement)
-})
+await ensureSchema(client)
 
 const app = createApp(db)
 

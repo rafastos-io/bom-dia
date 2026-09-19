@@ -15,7 +15,9 @@ import {
 import type {
   Attachment,
   Note,
+  Prioridade,
   Project,
+  Status,
   Task,
   TaskPayload,
   TaskLink,
@@ -40,6 +42,38 @@ function useRefreshData() {
 
 export function useTasks() {
   return useQuery({ queryKey: qk.tasks, queryFn: apiTasks.list })
+}
+
+/** Ações em lote (concluir/reabrir/prioridade) sobre a seleção da tabela. */
+export function useBulkTaskAction() {
+  const refresh = useRefreshData()
+  return useMutation({
+    mutationFn: async ({
+      ids,
+      patch,
+    }: {
+      ids: number[]
+      patch: { status?: Status; priority?: Prioridade }
+    }) => {
+      for (const id of ids) {
+        await apiTasks.update(id, patch)
+      }
+    },
+    onSuccess: refresh,
+  })
+}
+
+/** Exclui várias tarefas com uma atualização só no fim. */
+export function useBulkDeleteTasks() {
+  const refresh = useRefreshData()
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      for (const id of ids) {
+        await apiTasks.remove(id)
+      }
+    },
+    onSuccess: refresh,
+  })
 }
 
 export function useProjects() {

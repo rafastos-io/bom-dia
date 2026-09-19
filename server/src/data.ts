@@ -2,7 +2,7 @@ import { sql, type SQL } from "drizzle-orm"
 import type { Database } from "./db/client.js"
 import { r2Enabled } from "./config.js"
 import { r2Delete } from "./r2.js"
-import { IDEA_TARGET_TIPOS, cleanRecorrencia, nowIso, periodoAtual } from "./rules.js"
+import { IDEA_TARGET_TIPOS, advanceDate, cleanRecorrencia, nowIso, periodoAtual } from "./rules.js"
 
 export type TaskRow = {
   id: number
@@ -179,13 +179,16 @@ export async function createTask(db: Database, data: Record<string, unknown>): P
   const tipo = TIPOS_HAS(String(data.tipo)) ? String(data.tipo) : "tarefa"
   const projeto = str(data.projeto)
   const recorrencia = cleanRecorrencia(data.recorrencia, tipo)
+  const status = str(data.status) || "aberta"
   const result = await db.run(
     sql`INSERT INTO tasks (title, requested_by, send_to, due_date, priority, description, status,
-                          created_at, tipo, projeto, recorrencia, feito_em)
+                          created_at, tipo, projeto, recorrencia, feito_em, completed_at, estimate_min)
         VALUES (${str(data.title) || "Sem titulo"}, ${str(data.requested_by)}, ${str(data.send_to)},
                 ${str(data.due_date)}, ${str(data.priority) || "media"}, ${str(data.description)},
-                ${str(data.status) || "aberta"}, ${nowIso()}, ${tipo}, ${projeto}, ${recorrencia},
-                ${data.feita && recorrencia ? periodoAtual(recorrencia) : ""})`,
+                ${status}, ${nowIso()}, ${tipo}, ${projeto}, ${recorrencia},
+                ${data.feita && recorrencia ? periodoAtual(recorrencia) : ""},
+                ${status === "concluida" ? nowIso() : ""},
+                ${Number(data.estimate_min) || 0})`,
   )
   const taskId = Number(result.lastInsertRowid)
   await insertLinks(db, taskId, (data.links as unknown[]) ?? [])
@@ -218,20 +221,28 @@ export async function updateTask(
   taskId: number,
   data: Record<string, unknown>,
 ): Promise<void> {
+  const current = await db.get<{
+    tipo: string | null
+    recorrencia: string | null
+    status: string | null
+  }>(sql`SELECT tipo, recorrencia, status FROM tasks WHERE id = ${taskId}`)
+
   const sets: SQL[] = []
   for (const field of TASK_FIELDS) {
     if (field in data) sets.push(sql`${sql.raw(field)} = ${data[field]}`)
   }
+  if ("estimate_min" in data) {
+    sets.push(sql`estimate_min = ${Number(data.estimate_min) || 0}`)
+  }
   if ("recorrencia" in data || "tipo" in data) {
-    const current = await db.get<{ tipo: string | null; recorrencia: string | null }>(
-      sql`SELECT tipo, recorrencia FROM tasks WHERE id = ${taskId}`,
-    )
     if (current) {
-      const tipoFinal = TIPOS_HAS(String(data.tipo ?? current.tipo)) ? String(data.tipo ?? current.tipo) : "tarefa"
+      const tipoFinal = TIPOS_HAS(String(data.tipo ?? current.tipo))
+        ? String(data.tipo ?? current.tipo)
+        : "tarefa"
       const recFinal =
         "recorrencia" in data
           ? cleanRecorrencia(data.recorrencia, tipoFinal)
-          : tipoFinal === "rotina"
+          : tipoFinal === "rotina" || tipoFinal === "tarefa"
             ? current.recorrencia || ""
             : ""
       if ("recorrencia" in data || recFinal !== (current.recorrencia || "")) {
@@ -241,6 +252,13 @@ export async function updateTask(
         }
       }
     }
+  }
+  // Data real de conclusão (para o gráfico de fluxo/revisão da semana).
+  if ("status" in data && current) {
+    const nextStatus = str(data.status)
+    const wasDone = (current.status || "aberta") === "concluida"
+    if (nextStatus === "concluida" && !wasDone) sets.push(sql`completed_at = ${nowIso()}`)
+    else if (nextStatus !== "concluida" && wasDone) sets.push(sql`completed_at = ${""}`)
   }
   if (sets.length) {
     await db.run(sql`UPDATE tasks SET ${sql.join(sets, sql`, `)} WHERE id = ${taskId}`)
@@ -263,6 +281,50 @@ export async function updateTask(
   if ("projeto" in data) {
     await ensureProject(db, str(data.projeto))
   }
+
+  // Recorrência de tarefa: ao concluir, gera a próxima ocorrência automaticamente.
+  if (current && "status" in data && str(data.status) === "concluida") {
+    const wasDone = (current.status || "aberta") === "concluida"
+    const tipoFinal = TIPOS_HAS(String(data.tipo ?? current.tipo))
+      ? String(data.tipo ?? current.tipo)
+      : "tarefa"
+    const recFinal =
+      "recorrencia" in data
+        ? cleanRecorrencia(data.recorrencia, tipoFinal)
+        : current.recorrencia || ""
+    if (!wasDone && tipoFinal === "tarefa" && recFinal) {
+      await spawnNextOccurrence(db, taskId, recFinal)
+    }
+  }
+}
+
+/** Copia a tarefa recorrente para a próxima data (subtarefas sem check, links juntos). */
+async function spawnNextOccurrence(
+  db: Database,
+  taskId: number,
+  recorrencia: string,
+): Promise<number> {
+  const row = await db.get<{ due_date: string | null }>(
+    sql`SELECT due_date FROM tasks WHERE id = ${taskId}`,
+  )
+  const nextDue = advanceDate(str(row?.due_date), recorrencia)
+  const result = await db.run(
+    sql`INSERT INTO tasks (title, requested_by, send_to, due_date, priority, description, status,
+                           created_at, tipo, projeto, recorrencia, feito_em, completed_at, estimate_min)
+        SELECT title, requested_by, send_to, ${nextDue}, priority, description, 'aberta',
+               ${nowIso()}, tipo, projeto, recorrencia, '', '', estimate_min
+        FROM tasks WHERE id = ${taskId}`,
+  )
+  const newId = Number(result.lastInsertRowid)
+  await db.run(
+    sql`INSERT INTO links (task_id, kind, label, target)
+        SELECT ${newId}, kind, label, target FROM links WHERE task_id = ${taskId}`,
+  )
+  await db.run(
+    sql`INSERT INTO subtasks (task_id, title, done, position)
+        SELECT ${newId}, title, 0, position FROM subtasks WHERE task_id = ${taskId}`,
+  )
+  return newId
 }
 
 export async function updateSubtask(

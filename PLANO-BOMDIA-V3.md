@@ -163,8 +163,30 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
 | Assets Runway | primeiras gerações revisadas antes de espalhar na UI |
 | Cutover | dados congelados + subdomínio de validação + rollback |
 
-## Registro de fases concluídas
-- **F0 — Fundação (17/09/2026)** · Criados: `opencode.json`, `PLANO-BOMDIA-V3.md`,
+## Fase rápida — Fluxo rápido + Rotinas (aprovada 19/09)
+
+### F9/A — Fluxo rápido (front-only) ✅ concluída (19/09)
+- [x] A1. ⌘K real + command palette (busca, áreas, nova tarefa, Poohzera)
+- [x] A2. Duplicar tarefa e projeto
+- [x] A3. Multi-seleção + ações em lote na tabela
+- [x] A4. Visões salvas por área (view + filtros + sort)
+- [x] A5. Janela do dia na Hoje (Ontem/Hoje/Amanhã/Semana)
+- [x] A6. Sino de prazos (atrasadas + hoje/amanhã)
+- [x] A7. Datas naturais no modal (hoje/amanhã/próx. semana)
+
+### F10/B — Rotinas e inteligência (migração única) ✅ concluída (19/09)
+- [x] B0. Migração idempotente: `completed_at`, `estimate_min`
+- [x] B1. Concluídas na semana / tempo médio (gráfico de fluxo)
+- [x] B2. Revisão da semana (digest) — painel na Hoje
+- [x] B3. Recorrência fora da rotina (gera a próxima ao concluir)
+- [x] B4. Visão Recorrentes + filtro "é recorrente"
+- [x] B5. Estimativa + workload (esforço por dia)
+
+### F11 — Verificação e deploy
+- [ ] typecheck/lint/build/testes + auditoria 0/0 + capturas
+- [ ] Deploy único (autorizado) + validação em produção + docs/CENTRAL
+
+## Registro de fases concluídas- **F0 — Fundação (17/09/2026)** · Criados: `opencode.json`, `PLANO-BOMDIA-V3.md`,
   `package.json` raiz, `server/` (Hono + TS + ESLint + Vitest, rota `/health`),
   `Dockerfile` v3 multi-stage, `.dockerignore`, `web/scripts/runway-mascot.mjs` e
   8 assets do mascote/ilustrações em `web/public/brand/` (PNG com transparência real).

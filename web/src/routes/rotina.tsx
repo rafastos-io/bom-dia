@@ -1,5 +1,6 @@
 import { Button } from "@rafastos/ui/button"
 import { Plus } from "lucide-react"
+import { RecurrencePanel } from "@/components/app/recurrence-panel"
 import { ScreenHeader } from "@/components/app/screen-header"
 import { BoardSkeleton, QueryError, TaskBoard } from "@/components/area-board"
 import { useOverlays } from "@/components/overlay-provider"
@@ -28,6 +29,7 @@ export function RotinaPage() {
         }
       />
 
+      <RecurrencePanel />
       <ViewToolbar />
       {failed ? (
         <QueryError

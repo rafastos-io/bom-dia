@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildGaps, cleanRecorrencia, periodoAtual } from "../src/rules.js"
+import { advanceDate, buildGaps, cleanRecorrencia, periodoAtual } from "../src/rules.js"
 
 describe("periodoAtual", () => {
   it("diaria usa a data ISO", () => {
@@ -30,9 +30,23 @@ describe("cleanRecorrencia", () => {
     expect(cleanRecorrencia("anual")).toBe("")
   })
 
-  it("zera quando o tipo nao e rotina", () => {
-    expect(cleanRecorrencia("diaria", "tarefa")).toBe("")
+  it("zera quando o tipo nao aceita recorrencia", () => {
+    expect(cleanRecorrencia("diaria", "tarefa")).toBe("diaria")
     expect(cleanRecorrencia("diaria", "rotina")).toBe("diaria")
+    expect(cleanRecorrencia("diaria", "ideia")).toBe("")
+  })
+})
+
+describe("advanceDate", () => {
+  it("avanca conforme a recorrencia", () => {
+    expect(advanceDate("2026-09-18", "diaria")).toBe("2026-09-19")
+    expect(advanceDate("2026-09-18", "semanal")).toBe("2026-09-25")
+    expect(advanceDate("2026-09-18", "mensal")).toBe("2026-10-18")
+  })
+
+  it("sem data valida usa hoje", () => {
+    const next = advanceDate("", "diaria")
+    expect(next).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })
 

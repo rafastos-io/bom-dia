@@ -1,6 +1,6 @@
 import { NativeSelect, NativeSelectOption } from "@rafastos/ui/native-select"
 import { cn } from "cn"
-import { Columns3, LayoutGrid, List, TriangleAlert } from "lucide-react"
+import { Columns3, LayoutGrid, List, Repeat2, TriangleAlert } from "lucide-react"
 import { Chip } from "@/components/app/chip"
 import { SearchField } from "@/components/app/search-field"
 import { useListView } from "./list-view"
@@ -116,11 +116,18 @@ export function ViewToolbar({
             />
             Atrasadas
           </Chip>
+          <Chip
+            active={view.recurringOnly}
+            onClick={() => view.setRecurringOnly(!view.recurringOnly)}
+          >
+            <Repeat2 className="size-3.5" aria-hidden />
+            Recorrentes
+          </Chip>
         </div>
 
         <NativeSelect
           size="sm"
-          className="ml-auto w-40"
+          className="ml-auto w-44 shrink-0"
           aria-label="Ordenar por"
           value={view.sort}
           onChange={(event) => view.setSort(event.target.value as SortKey)}

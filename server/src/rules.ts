@@ -35,8 +35,18 @@ export function periodoAtual(recorrencia: string, today = new Date()): string {
 export function cleanRecorrencia(value: unknown, tipo?: string): string {
   let rec = String(value ?? "").trim()
   if (!RECORRENCIAS.has(rec)) rec = ""
-  if (tipo !== undefined && tipo !== "rotina") rec = ""
+  // recorrência vale para rotina (check por período) e tarefa (gera a próxima ao concluir)
+  if (tipo !== undefined && tipo !== "rotina" && tipo !== "tarefa") rec = ""
   return rec
+}
+
+/** Próxima data conforme a recorrência (diária/semanal/mensal), a partir de uma data ISO. */
+export function advanceDate(iso: string, recorrencia: string): string {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T12:00:00Z`) : new Date()
+  if (recorrencia === "diaria") base.setUTCDate(base.getUTCDate() + 1)
+  else if (recorrencia === "semanal") base.setUTCDate(base.getUTCDate() + 7)
+  else if (recorrencia === "mensal") base.setUTCMonth(base.getUTCMonth() + 1)
+  return base.toISOString().slice(0, 10)
 }
 
 export type TaskLike = {

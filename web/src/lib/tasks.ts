@@ -58,6 +58,16 @@ export function fmtDate(value: string): string {
   return `${day}/${m}`
 }
 
+/** Minutos em texto curto: 90 -> "1h30", 45 -> "45min". */
+export function fmtMinutes(minutes: number | null | undefined): string {
+  const total = Number(minutes) || 0
+  if (total <= 0) return ""
+  if (total < 60) return `${total}min`
+  const hours = Math.floor(total / 60)
+  const rest = total % 60
+  return rest ? `${hours}h${String(rest).padStart(2, "0")}` : `${hours}h`
+}
+
 export function inArea(task: Task, area: AreaId): boolean {
   const tipo = task.tipo || "tarefa"
   if (area === "hoje") return tipo === "tarefa"

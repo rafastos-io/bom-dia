@@ -1,4 +1,5 @@
 import { Button } from "@rafastos/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@rafastos/ui/popover"
 import { Toaster } from "@rafastos/ui/sonner"
 import {
   Tooltip,
@@ -7,17 +8,20 @@ import {
   TooltipTrigger,
 } from "@rafastos/ui/tooltip"
 import { cn } from "cn"
-import { LogOut, Moon, Settings2, Sun } from "lucide-react"
+import { Bell, LogOut, Moon, Settings2, Sun } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 import { useMemo, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router"
 import { AREAS, type AreaDef, type AreaId } from "@/lib/areas"
 import { rfSlideUp, rfTransition } from "@/lib/motion"
 import { useProjects, useTasks } from "@/lib/queries"
-import { archivedIndex, areaCounts } from "@/lib/tasks"
+import { archivedIndex, areaCounts, fmtDate, isTaskHidden } from "@/lib/tasks"
+import { CommandPalette } from "./app/command-palette"
+import { Dot } from "./app/dot"
 import { MascotAvatar } from "./app/mascot"
 import { SearchField } from "./app/search-field"
 import { ListViewProvider } from "./list-view"
+import { useOverlays } from "./overlay-provider"
 import { SettingsDialog } from "./settings-dialog"
 import { useTheme } from "./theme-provider"
 
@@ -110,6 +114,102 @@ function TabBarItem({ area, count }: { area: AreaDef; count: number }) {
         </>
       )}
     </NavLink>
+  )
+}
+
+/** Sino de prazos: atrasadas + vencendo hoje/amanhã (client-side). */
+function DueAlerts() {
+  const tasks = useTasks()
+  const projects = useProjects()
+  const overlays = useOverlays()
+
+  const alerts = useMemo(() => {
+    const archived = archivedIndex(projects.data ?? [])
+    const active = (tasks.data ?? []).filter(
+      (task) => task.status !== "concluida" && !isTaskHidden(task, archived, null),
+    )
+    const today = new Date().toISOString().slice(0, 10)
+    const tomorrowDate = new Date()
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+    const tomorrow = tomorrowDate.toISOString().slice(0, 10)
+
+    const byDue = (a: { due_date: string }, b: { due_date: string }) =>
+      a.due_date.localeCompare(b.due_date)
+    const overdue = active
+      .filter((task) => task.due_date && task.due_date.slice(0, 10) < today)
+      .sort(byDue)
+    const dueToday = active.filter((task) => task.due_date?.slice(0, 10) === today)
+    const dueTomorrow = active.filter((task) => task.due_date?.slice(0, 10) === tomorrow)
+    return { overdue, dueToday, dueTomorrow, count: overdue.length + dueToday.length }
+  }, [tasks.data, projects.data])
+
+  const sections = [
+    { key: "overdue", title: "Atrasadas", tone: "pink" as const, items: alerts.overdue },
+    { key: "today", title: "Vencem hoje", tone: "amber" as const, items: alerts.dueToday },
+    { key: "tomorrow", title: "Amanhã", tone: "blue" as const, items: alerts.dueTomorrow },
+  ].filter((section) => section.items.length)
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Prazos${alerts.count ? ` (${alerts.count})` : ""}`}
+          className="relative"
+        >
+          <Bell aria-hidden />
+          {alerts.count ? (
+            <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-action px-1 font-mono text-[10px] leading-none text-action-foreground">
+              {alerts.count}
+            </span>
+          ) : null}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-rf-4">
+        <p className="rf-label text-foreground">Prazos</p>
+        {sections.length ? (
+          <div className="flex flex-col gap-rf-3 pt-rf-3">
+            {sections.map((section) => (
+              <div key={section.key} className="flex flex-col gap-rf-1">
+                <span className="flex items-center gap-rf-2 rf-caption text-muted-foreground">
+                  <Dot tone={section.tone} />
+                  {section.title} · {section.items.length}
+                </span>
+                <ul className="flex flex-col">
+                  {section.items.slice(0, 5).map((task) => (
+                    <li key={task.id}>
+                      <button
+                        type="button"
+                        onClick={() => overlays.openTask(task.id)}
+                        className="flex w-full min-w-0 items-center gap-rf-2 rounded-[var(--rf-radius-control)] px-rf-2 py-rf-1.5 text-left outline-none hover:bg-[var(--rf-hover)]/60 focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <span className="min-w-0 flex-1 truncate rf-caption text-foreground">
+                          {task.title}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                          {fmtDate(task.due_date)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                  {section.items.length > 5 ? (
+                    <li className="px-rf-2 rf-caption text-muted-foreground">
+                      +{section.items.length - 5} nesta lista
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="pt-rf-2 rf-caption text-muted-foreground">
+            Nada atrasado e nada vencendo hoje. 🎉
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -226,6 +326,7 @@ export function AppShell() {
               />
 
               <div className="ml-auto flex items-center gap-rf-1">
+                <DueAlerts />
                 <span className="min-[860px]:hidden">{themeButton()}</span>
                 <Button
                   type="button"
@@ -271,6 +372,7 @@ export function AppShell() {
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
           />
+          <CommandPalette />
           <Toaster position="bottom-center" />
         </div>
       </ListViewProvider>

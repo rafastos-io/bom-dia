@@ -19,21 +19,23 @@ export function useAreaTasks(area: AreaId, openProject: string | null = null) {
   )
 
   const list = useMemo(() => {
-    const filtered = (tasks.data ?? []).filter((task) =>
-      matchesFilters(
-        task,
-        {
-          area,
-          openProject,
-          archived,
-          filter: view.filter,
-          prio: view.prio,
-          lateOnly: view.lateOnly,
-          search: view.search,
-        },
-        { ignoreStatus: view.view === "kanban" },
-      ),
-    )
+    const filtered = (tasks.data ?? [])
+      .filter((task) =>
+        matchesFilters(
+          task,
+          {
+            area,
+            openProject,
+            archived,
+            filter: view.filter,
+            prio: view.prio,
+            lateOnly: view.lateOnly,
+            search: view.search,
+          },
+          { ignoreStatus: view.view === "kanban" },
+        ),
+      )
+      .filter((task) => !view.recurringOnly || Boolean(task.recorrencia))
     return sortTasks(filtered, view.sort)
   }, [
     tasks.data,
@@ -43,6 +45,7 @@ export function useAreaTasks(area: AreaId, openProject: string | null = null) {
     view.filter,
     view.prio,
     view.lateOnly,
+    view.recurringOnly,
     view.search,
     view.sort,
     view.view,

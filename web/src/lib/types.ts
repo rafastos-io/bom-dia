@@ -46,6 +46,8 @@ export type Task = {
   subtasks: Subtask[]
   idea_links: IdeaLink[]
   attach_count: number
+  completed_at?: string
+  estimate_min?: number
 }
 
 export type TaskPayload = {
@@ -62,6 +64,7 @@ export type TaskPayload = {
   subtasks: Subtask[]
   recorrencia: Recorrencia
   idea_links?: Pick<IdeaLink, "target_type" | "target_id">[]
+  estimate_min?: number
 }
 
 export type ProjectLink = {

@@ -9,7 +9,7 @@ import { ScreenHeader } from "@/components/app/screen-header"
 import { QueryError } from "@/components/area-board"
 import { useOverlays } from "@/components/overlay-provider"
 import { useProjects, useTasks } from "@/lib/queries"
-import { archivedIndex, isTaskHidden, PRIO_RANK } from "@/lib/tasks"
+import { archivedIndex, fmtMinutes, isTaskHidden, PRIO_RANK } from "@/lib/tasks"
 import type { Prioridade, Task } from "@/lib/types"
 
 const MESES = [
@@ -285,6 +285,9 @@ export function AgendaPage() {
                             </span>
                             <span className="min-w-0 truncate rf-caption text-muted-foreground">
                               {task.projeto || "Sem projeto"} · {monthNum}/{day}
+                              {task.estimate_min
+                                ? ` · ≈${fmtMinutes(task.estimate_min)}`
+                                : ""}
                             </span>
                           </span>
                         </button>

@@ -10,7 +10,7 @@
  */
 import { readFileSync } from "node:fs"
 import { createClient, type Client } from "@libsql/client"
-import { CREATE_SQL } from "../src/db/migrate.js"
+import { ensureSchema } from "../src/db/migrate.js"
 
 type TableSpec = { name: string; columns: string[] }
 
@@ -71,10 +71,7 @@ async function count(client: Client, table: string): Promise<number> {
 }
 
 async function ensureTargetSchema(target: Client) {
-  for (const statement of CREATE_SQL.split(";")) {
-    const sql = statement.trim()
-    if (sql) await target.execute(`${sql};`)
-  }
+  await ensureSchema(target)
 }
 
 async function importTable(

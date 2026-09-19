@@ -1,3 +1,5 @@
+import type { Client } from "@libsql/client"
+
 export const CREATE_SQL = `
 CREATE TABLE IF NOT EXISTS tasks (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -12,7 +14,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   tipo         TEXT DEFAULT 'tarefa',
   projeto      TEXT DEFAULT '',
   recorrencia  TEXT DEFAULT '',
-  feito_em     TEXT DEFAULT ''
+  feito_em     TEXT DEFAULT '',
+  completed_at TEXT DEFAULT '',
+  estimate_min INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS links (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,9 +93,32 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `
 
-export async function ensureSchema(execute: (sql: string) => Promise<unknown>) {
+/** Colunas adicionadas depois da v3.0 (migrações idempotentes). */
+export const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: string }> = [
+  { table: "tasks", column: "completed_at", ddl: "completed_at TEXT DEFAULT ''" },
+  { table: "tasks", column: "estimate_min", ddl: "estimate_min INTEGER DEFAULT 0" },
+]
+
+async function ensureColumn(
+  client: Client,
+  table: string,
+  column: string,
+  ddl: string,
+): Promise<void> {
+  const info = await client.execute(`PRAGMA table_info(${table})`)
+  const names = info.rows.map((row) => String((row as Record<string, unknown>).name))
+  if (!names.includes(column)) {
+    await client.execute(`ALTER TABLE ${table} ADD COLUMN ${ddl}`)
+  }
+}
+
+/** Cria o schema (se preciso) e aplica as migrações de coluna. */
+export async function ensureSchema(client: Client): Promise<void> {
   for (const statement of CREATE_SQL.split(";")) {
     const sql = statement.trim()
-    if (sql) await execute(`${sql};`)
+    if (sql) await client.execute(`${sql};`)
+  }
+  for (const migration of COLUMN_MIGRATIONS) {
+    await ensureColumn(client, migration.table, migration.column, migration.ddl)
   }
 }

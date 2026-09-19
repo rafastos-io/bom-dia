@@ -14,6 +14,8 @@ export const tasks = sqliteTable("tasks", {
   projeto: text("projeto").default(""),
   recorrencia: text("recorrencia").default(""),
   feitoEm: text("feito_em").default(""),
+  completedAt: text("completed_at").default(""),
+  estimateMin: integer("estimate_min").default(0),
 })
 
 export const links = sqliteTable("links", {

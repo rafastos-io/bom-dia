@@ -3,7 +3,7 @@ import { DialogFooter } from "@rafastos/ui/dialog"
 import { Input } from "@rafastos/ui/input"
 import { Spinner } from "@rafastos/ui/spinner"
 import { Textarea } from "@rafastos/ui/textarea"
-import { Trash2 } from "lucide-react"
+import { Trash2, Copy } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { useDeleteProject, useSaveProject } from "@/lib/queries"
@@ -69,6 +69,29 @@ export function ProjectDialog({
     }
   }
 
+  async function duplicateProject() {
+    if (!project) return
+    try {
+      await save.mutateAsync({
+        payload: {
+          name: `${project.name} (cópia)`,
+          scope: project.scope ?? "",
+          people: project.people ?? "",
+          links: (project.links ?? []).map((link) => ({
+            kind: link.kind,
+            label: link.label ?? "",
+            target: link.target,
+            grupo: link.grupo ?? "",
+          })),
+        },
+      })
+      toast.success("Projeto duplicado ✓")
+      onOpenChange(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não deu pra duplicar")
+    }
+  }
+
   return (
     <AppDialog
       open={open}
@@ -126,6 +149,17 @@ export function ProjectDialog({
                 onClick={removeProject}
               >
                 <Trash2 aria-hidden /> Excluir
+              </Button>
+            ) : null}
+            {project ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={save.isPending}
+                onClick={() => void duplicateProject()}
+              >
+                <Copy aria-hidden /> Duplicar
               </Button>
             ) : null}
             <div className="flex-1" />
