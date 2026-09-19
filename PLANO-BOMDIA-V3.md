@@ -126,16 +126,22 @@ Só adições. `/api/open` removido.
       e popups (30 PNGs)
 - [ ] **Aguardando aprovação de Rafael** para o cutover (F8)
 
-### F8 — Cutover e limpeza ✅ cutover concluído (18/09)
+### F8 — Cutover e limpeza ✅ concluída (18–19/09)
 - [x] Import no Turso 1:1 e sem órfãos (dados congelados desde então)
 - [x] `TURSO_*` cadastradas no Coolify (via model, criptografadas) e deploy da `main`
       (`1377df9` + fix do healthcheck `cc1936f`)
 - [x] Validação: container **healthy**, `/health` v3, `/login` 200, `/api/tasks` 401 sem sessão,
       bundle servido; captura `screens-v3/producao-login-v3.png`
 - [x] Docs v3 (`README.md`, `DEPLOY.md`) e CENTRAL atualizados
-- [ ] Monitoramento por alguns dias → remover Python/UI legada e arquivar `bomdia.db`
-- [ ] Pendências finas pós-cutover: confirmar diálogos do DS, bottom-sheet universal no mobile,
-      backup semanal Turso → R2, rotacionar chave Runway
+- [x] Legado removido do repositório e arquivado em
+      `C:\Users\rafaa\VIBECODING\BomDia-legacy\` (código Python/UI antiga, bandeja e bancos
+      SQLite com `bomdia.db`)
+- [x] Pendências finas pós-cutover: confirmações nativas → **diálogo do DS**
+      (`ConfirmProvider`) e **bottom-sheet universal** no mobile (`AppDialog`) — deploy `c25aae6`
+- [x] VPS reiniciada (atualizações de segurança pendentes, autorizado por Rafael em 18/09):
+      todos os 13 containers `OK`, Horizon/webhook autorreparo `OK`, bomdia e DS em HTTP 200
+- [ ] Backup semanal Turso → R2 (próximo)
+- [ ] Rotacionar a chave Runway usada na geração dos assets (manual, quando quiser)
 
 ## Protocolo de acompanhamento
 
@@ -237,3 +243,10 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
   cadastradas via model do Coolify (valores criptografados pela própria aplicação). Legado
   Python/UI antiga segue no repositório como rollback; remoção e arquivamento do `bomdia.db`
   ficam para depois do monitoramento, junto das pendências finas.
+- **F8 — Complementos (18–19/09/2026)** · Legado arquivado em `C:\Users\rafaa\VIBECODING\BomDia-legacy\`
+  (código, bandeja e bancos) e removido do repositório; `.env.example` refeito para a v3.
+  Pendências finas implementadas e publicadas em `c25aae6`: **ConfirmProvider** (confirmações e
+  entrada de texto no padrão do DS, substituindo `window.confirm/prompt` em 7 pontos) e
+  **AppDialog** (Ajustes, Projeto, WhatsApp e Poohzera viram bottom-sheet <=619px). VPS reiniciada
+  com autorização de Rafael: 13 containers `OK`, Horizon/webhook `OK`, bomdia e Design System em
+  HTTP 200. Restam: backup semanal Turso → R2 e rotação da chave Runway.
