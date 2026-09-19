@@ -4,11 +4,11 @@
     "edit": "allow",
     "bash": {
       "*": "allow",
-      "git push*": "deny",
-      "git remote add*": "deny",
-      "gh pr*": "deny",
-      "gh release*": "deny",
-      "ssh *": "deny",
+      "git push*": "ask",
+      "git remote add*": "ask",
+      "gh pr*": "ask",
+      "gh release*": "ask",
+      "ssh *": "ask",
       "scp *": "deny",
       "rm -rf *": "deny",
       "Remove-Item * -Recurse*": "deny"

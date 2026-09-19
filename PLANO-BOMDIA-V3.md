@@ -182,9 +182,14 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
 - [x] B4. Visão Recorrentes + filtro "é recorrente"
 - [x] B5. Estimativa + workload (esforço por dia)
 
-### F11 — Verificação e deploy
-- [ ] typecheck/lint/build/testes + auditoria 0/0 + capturas
-- [ ] Deploy único (autorizado) + validação em produção + docs/CENTRAL
+### F11 — Verificação e deploy ✅ concluída (19/09)
+- [x] typecheck/lint/build/testes + auditoria 0/0 + capturas
+- [x] Deploy único (`52aba2e`): deploy finished, container healthy, `/health` v3, bundle novo
+      (`index-1D1WFuFd.js`), `/api/tasks` 401 sem sessão
+- [x] Docs/CENTRAL atualizados
+
+**Extras da fila (não bloqueiam):** export CSV, tamanho de card/densidade, PWA, tags,
+dependências ("bloqueada por"), histórico/atividade da tarefa.
 
 ## Registro de fases concluídas- **F0 — Fundação (17/09/2026)** · Criados: `opencode.json`, `PLANO-BOMDIA-V3.md`,
   `package.json` raiz, `server/` (Hono + TS + ESLint + Vitest, rota `/health`),
