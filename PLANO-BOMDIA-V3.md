@@ -257,4 +257,5 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
   shell e entrada escalonada dos cards, sempre com `useReducedMotion`. Auditoria do DS
   **0/0** de novo (as rodadas intermediárias acharam e corrigiram: rolagem lateral na Agenda a
   390 px por `min-width:auto` na cadeia + lista "Próximos", e o verde do "Feito" da Rotina).
-  Tudo local, aguardando autorização para publicar.
+  **Publicado em `3513de2`**: deploy `finished`, container healthy, `/health` v3, `/login` 200,
+  bundle 1,1 MB (com recharts) e `/api/tasks` 401 sem sessão.
