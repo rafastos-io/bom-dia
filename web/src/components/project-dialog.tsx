@@ -1,12 +1,5 @@
 import { Button } from "@rafastos/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@rafastos/ui/dialog"
+import { DialogFooter } from "@rafastos/ui/dialog"
 import { Input } from "@rafastos/ui/input"
 import { Spinner } from "@rafastos/ui/spinner"
 import { Textarea } from "@rafastos/ui/textarea"
@@ -15,6 +8,8 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { useDeleteProject, useSaveProject } from "@/lib/queries"
 import type { Project } from "@/lib/types"
+import { AppDialog } from "./app/app-dialog"
+import { useConfirm } from "./app/confirm"
 
 type ProjectDialogProps = {
   project: Project | null | undefined
@@ -31,6 +26,7 @@ export function ProjectDialog({
 }: ProjectDialogProps) {
   const save = useSaveProject()
   const remove = useDeleteProject()
+  const { confirm } = useConfirm()
   // O diálogo remonta a cada abertura (key no provider), então o estado inicial basta.
   const [name, setName] = useState(project?.name ?? "")
   const [scope, setScope] = useState(project?.scope ?? "")
@@ -57,13 +53,12 @@ export function ProjectDialog({
 
   async function removeProject() {
     if (!project) return
-    if (
-      !window.confirm(
-        `Excluir o projeto "${project.name}"? As demandas continuam existindo, mas ficam sem este agrupador.`,
-      )
-    ) {
-      return
-    }
+    const ok = await confirm({
+      title: `Excluir o projeto "${project.name}"?`,
+      description: "As demandas continuam existindo, mas ficam sem este agrupador.",
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await remove.mutateAsync(project.id)
       toast("Projeto excluído")
@@ -75,19 +70,17 @@ export function ProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{project ? "Editar projeto" : "Novo projeto"}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Nome, escopo e envolvidos do projeto
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="flex flex-col gap-rf-4">
-          <div className="flex flex-col gap-rf-2">
-            <label className="rf-caption font-medium text-foreground" htmlFor="proj-name">
-              Nome do projeto
-            </label>
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={project ? "Editar projeto" : "Novo projeto"}
+      description="Nome, escopo e envolvidos do projeto."
+    >
+      <form onSubmit={submit} className="flex flex-col gap-rf-4">
+        <div className="flex flex-col gap-rf-2">
+          <label className="rf-caption font-medium text-foreground" htmlFor="proj-name">
+            Nome do projeto
+          </label>
             <Input
               id="proj-name"
               value={name}
@@ -145,7 +138,6 @@ export function ProjectDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </AppDialog>
   )
 }

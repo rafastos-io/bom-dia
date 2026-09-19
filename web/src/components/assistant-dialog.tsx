@@ -1,9 +1,6 @@
 import { Button } from "@rafastos/ui/button"
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@rafastos/ui/dialog"
 import { Input } from "@rafastos/ui/input"
@@ -14,6 +11,7 @@ import { cn } from "cn"
 import { Folder, Link as LinkIcon, Plus, Sparkles, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
+import { AppDialog } from "@/components/app/app-dialog"
 import { MascotAvatar } from "@/components/app/mascot"
 import { apiTasks } from "@/lib/api"
 import {
@@ -152,9 +150,13 @@ export function AssistantDialog({ open, onOpenChange }: AssistantDialogProps) {
           : "Poohzera"
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92dvh] flex-col overflow-hidden sm:max-w-2xl">
-        <DialogHeader className="items-start gap-rf-3 sm:flex-row sm:items-center">
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      dialogClassName="flex max-h-[92dvh] flex-col overflow-hidden sm:max-w-2xl"
+      header={
+        <div className="flex items-start gap-rf-3 sm:items-center">
           <MascotAvatar className="size-12" />
           <div className="flex min-w-0 flex-col gap-rf-1">
             <DialogTitle>{title}</DialogTitle>
@@ -168,8 +170,9 @@ export function AssistantDialog({ open, onOpenChange }: AssistantDialogProps) {
                     : `Organizei em ${pending.length} ${pending.length === 1 ? "item" : "itens"} — revise e confirme.`}
             </DialogDescription>
           </div>
-        </DialogHeader>
-
+        </div>
+      }
+    >
         <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
           {step === "setup" ? (
             <form onSubmit={submitKey} className="flex flex-col items-center gap-rf-4 py-rf-3 text-center">
@@ -249,8 +252,7 @@ export function AssistantDialog({ open, onOpenChange }: AssistantDialogProps) {
             />
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+    </AppDialog>
   )
 }
 

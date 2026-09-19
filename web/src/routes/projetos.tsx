@@ -17,6 +17,7 @@ import { useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 import { Dot, toneFromKey } from "@/components/app/dot"
+import { useConfirm } from "@/components/app/confirm"
 import { EmptyState } from "@/components/app/empty-state"
 import { Panel } from "@/components/app/panel"
 import { ScreenHeader } from "@/components/app/screen-header"
@@ -314,6 +315,7 @@ function ProjectCentral({
   const overlays = useOverlays()
   const save = useSaveProject()
   const remove = useDeleteProject()
+  const { confirm } = useConfirm()
   const project = (projects.data ?? []).find((item) => item.name === name) ?? null
   const archived = project ? (project.status || "ativo") !== "ativo" : false
 
@@ -413,8 +415,14 @@ function ProjectCentral({
                 variant="ghost"
                 size="icon-sm"
                 title="Excluir projeto"
-                onClick={() => {
-                  if (!window.confirm(`Excluir o projeto "${project.name}"?`)) return
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `Excluir o projeto "${project.name}"?`,
+                    description:
+                      "As demandas continuam existindo, mas ficam sem este agrupador. Notas, links e arquivos do projeto são removidos.",
+                    destructive: true,
+                  })
+                  if (!ok) return
                   remove.mutate(project.id, {
                     onSuccess: () => {
                       toast("Projeto excluído")

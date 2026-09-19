@@ -8,11 +8,13 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { useDeleteNote, useNotes, useSaveNote } from "@/lib/queries"
 import type { Note, Project } from "@/lib/types"
+import { useConfirm } from "./app/confirm"
 
 export function NotesPanel({ project }: { project: Project }) {
   const notes = useNotes(project.id ?? 0)
   const save = useSaveNote(project.id ?? 0)
   const remove = useDeleteNote(project.id ?? 0)
+  const { confirm } = useConfirm()
   const [pickedId, setPickedId] = useState<number | null>(null)
 
   const list = notes.data ?? []
@@ -80,9 +82,13 @@ export function NotesPanel({ project }: { project: Project }) {
           <NoteEditor
             key={current.id}
             note={current}
-            onDelete={() => {
-              if (!window.confirm("Excluir esta anotação?")) return
-              remove.mutate(current.id, {
+          onDelete={async () => {
+            const ok = await confirm({
+              title: "Excluir esta anotação?",
+              destructive: true,
+            })
+            if (!ok) return
+            remove.mutate(current.id, {
                 onSuccess: () => {
                   setPickedId(null)
                   toast("Anotação excluída")

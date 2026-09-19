@@ -28,6 +28,7 @@ export default defineConfig([
       "src/components/list-view.tsx",
       "src/components/app/dot.tsx",
       "src/components/app/mascot.tsx",
+      "src/components/app/confirm.tsx",
     ],
     rules: {
       "react-refresh/only-export-components": "off",

@@ -20,6 +20,7 @@ import {
 } from "@/lib/queries"
 import { fmtBytes, isImageAttachment } from "@/lib/tasks"
 import type { Attachment } from "@/lib/types"
+import { useConfirm } from "./app/confirm"
 import { Lightbox } from "./lightbox"
 
 type PendingUpload = { id: string; name: string; percent: number }
@@ -36,6 +37,7 @@ export function Attachments({ ownerType, ownerId, enablePaste }: AttachmentsProp
   const list = useAttachments(ownerType, ownerId)
   const upload = useUploadAttachment(ownerType, ownerId)
   const remove = useDeleteAttachment(ownerType, ownerId)
+  const { confirm } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<PendingUpload[]>([])
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null)
@@ -194,8 +196,14 @@ export function Attachments({ ownerType, ownerId, enablePaste }: AttachmentsProp
               key={attachment.id}
               attachment={attachment}
               onOpenImage={(src, alt) => setLightbox({ src, alt })}
-              onRemove={() => {
-                if (!window.confirm("Remover este arquivo?")) return
+              onRemove={async () => {
+                const ok = await confirm({
+                  title: "Remover este arquivo?",
+                  description: "O arquivo sai do R2 e não pode ser recuperado.",
+                  destructive: true,
+                  confirmLabel: "Remover",
+                })
+                if (!ok) return
                 remove.mutate(attachment.id, {
                   onSuccess: () => toast("Arquivo removido"),
                   onError: (error) =>

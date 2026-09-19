@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router"
 import { AppShell } from "@/components/app-shell"
+import { ConfirmProvider } from "@/components/app/confirm"
 import { OverlayProvider } from "@/components/overlay-provider"
 import { AgendaPage } from "@/routes/agenda"
 import { HojePage } from "@/routes/hoje"
@@ -14,9 +15,11 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route
         element={
-          <OverlayProvider>
-            <AppShell />
-          </OverlayProvider>
+          <ConfirmProvider>
+            <OverlayProvider>
+              <AppShell />
+            </OverlayProvider>
+          </ConfirmProvider>
         }
       >
         <Route index element={<HojePage />} />

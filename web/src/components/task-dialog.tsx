@@ -33,6 +33,7 @@ import { Reorder } from "motion/react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Attachments } from "@/components/attachments"
+import { useConfirm } from "@/components/app/confirm"
 import { Mascot } from "@/components/app/mascot"
 import { useOverlays } from "@/components/overlay-provider"
 import { useIsCompact } from "@/lib/use-media-query"
@@ -178,6 +179,7 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
   const saveTask = useSaveTask()
   const deleteTask = useDeleteTask()
   const overlays = useOverlays()
+  const { confirm } = useConfirm()
 
   const [{ base, form: initialForm, restored }] = useState(() =>
     buildInitial(task, presets),
@@ -219,12 +221,23 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
   }
 
   function handleOpenChange(next: boolean) {
-    if (!next && dirty && !window.confirm("Descartar alterações não salvas?")) return
-    if (!next) {
+    const close = () => {
       saveTask.reset()
       deleteTask.reset()
+      onOpenChange(next)
     }
-    onOpenChange(next)
+    if (!next && dirty) {
+      void confirm({
+        title: "Descartar alterações não salvas?",
+        description: "As mudanças deste formulário serão perdidas.",
+        confirmLabel: "Descartar",
+        destructive: true,
+      }).then((ok) => {
+        if (ok) close()
+      })
+      return
+    }
+    close()
   }
 
   const projectNames = useMemo(() => {
@@ -298,7 +311,12 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
 
   async function remove() {
     if (!task) return
-    if (!window.confirm("Excluir esta tarefa?")) return
+    const ok = await confirm({
+      title: "Excluir esta tarefa?",
+      description: "Subtarefas, links e anexos dela também são removidos.",
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await deleteTask.mutateAsync(task.id)
       try {

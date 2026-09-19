@@ -1,9 +1,6 @@
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@rafastos/ui/dialog"
 import { Button } from "@rafastos/ui/button"
@@ -18,6 +15,7 @@ import { Segmented } from "@/components/app/segmented"
 import { useTheme } from "@/components/theme-provider"
 import { useAiStatus, useSaveAiConfig } from "@/lib/queries"
 import type { ThemeMode } from "@/lib/theme"
+import { AppDialog } from "./app/app-dialog"
 
 type SettingsDialogProps = {
   open: boolean
@@ -48,17 +46,22 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader className="items-start gap-rf-3 sm:flex-row sm:items-center">
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Ajustes"
+      dialogClassName="sm:max-w-lg"
+      header={
+        <div className="flex items-start gap-rf-3 sm:items-center">
           <MascotAvatar className="size-12" />
           <div className="flex min-w-0 flex-col gap-rf-1">
             <DialogTitle>Ajustes</DialogTitle>
             <DialogDescription>Personalize sua experiência no Bom Dia.</DialogDescription>
           </div>
-        </DialogHeader>
-
-        <form onSubmit={submit} className="flex flex-col gap-rf-5">
+        </div>
+      }
+    >
+      <form onSubmit={submit} className="flex flex-col gap-rf-5">
           <label className="flex flex-col gap-rf-2">
             <span className="rf-caption font-medium text-foreground">
               Seu nome (pra saudação)
@@ -130,7 +133,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </AppDialog>
   )
 }

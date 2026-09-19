@@ -1,10 +1,7 @@
 import { Button } from "@rafastos/ui/button"
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@rafastos/ui/dialog"
 import { Spinner } from "@rafastos/ui/spinner"
@@ -12,6 +9,7 @@ import { Textarea } from "@rafastos/ui/textarea"
 import { Check, Copy, MessageSquare, RefreshCw, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { AppDialog } from "@/components/app/app-dialog"
 import { Mascot } from "@/components/app/mascot"
 import { useAiWhatsapp } from "@/lib/queries"
 import type { Task } from "@/lib/types"
@@ -102,9 +100,24 @@ export function WhatsappDialog({ task, onClose }: WhatsappDialogProps) {
   ]
 
   return (
-    <Dialog open={Boolean(task)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-3xl">
-        <div className="grid gap-rf-4 sm:grid-cols-[210px_minmax(0,1fr)]">
+    <AppDialog
+      open={Boolean(task)}
+      onOpenChange={(open) => !open && onClose()}
+      title="Recado pro WhatsApp"
+      dialogClassName="sm:max-w-3xl"
+      header={
+        <>
+          <DialogTitle className="flex items-center gap-rf-2">
+            <MessageSquare className="size-5 text-[var(--app-dot-green)]" aria-hidden />
+            Recado pro WhatsApp
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Gere uma mensagem a partir da tarefa e copie.
+          </DialogDescription>
+        </>
+      }
+    >
+      <div className="grid gap-rf-4 sm:grid-cols-[210px_minmax(0,1fr)]">
           <div className="hidden flex-col items-center justify-center gap-rf-3 sm:flex">
             <Mascot name={modo === "avisar" ? "phone" : "pockets"} className="h-52" />
             <p
@@ -121,19 +134,6 @@ export function WhatsappDialog({ task, onClose }: WhatsappDialogProps) {
           </div>
 
           <div className="flex min-w-0 flex-col gap-rf-4">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-rf-2">
-                <MessageSquare
-                  className="size-5 text-[var(--app-dot-green)]"
-                  aria-hidden
-                />
-                Recado pro WhatsApp
-              </DialogTitle>
-              <DialogDescription className="sr-only">
-                Gere uma mensagem a partir da tarefa e copie.
-              </DialogDescription>
-            </DialogHeader>
-
             <div className="grid gap-rf-2">
               {options.map((option) => {
                 const active = modo === option.key
@@ -197,7 +197,6 @@ export function WhatsappDialog({ task, onClose }: WhatsappDialogProps) {
             </DialogFooter>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+    </AppDialog>
   )
 }

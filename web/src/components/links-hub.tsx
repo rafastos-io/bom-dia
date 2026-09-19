@@ -8,9 +8,11 @@ import { toast } from "sonner"
 import { openLink } from "@/lib/open"
 import { useSaveProject } from "@/lib/queries"
 import type { Project, ProjectLink } from "@/lib/types"
+import { useConfirm } from "./app/confirm"
 
 export function LinksHub({ project }: { project: Project }) {
   const save = useSaveProject()
+  const { prompt } = useConfirm()
   const [kind, setKind] = useState<"web" | "pasta">("web")
   const [grupo, setGrupo] = useState("")
   const [label, setLabel] = useState("")
@@ -149,12 +151,17 @@ export function LinksHub({ project }: { project: Project }) {
                       className="w-40"
                       aria-label="Mover para categoria"
                       value={group}
-                      onChange={async (event) => {
-                        let value = event.target.value
-                        if (value === "__new__") {
-                          value = (window.prompt("Nome da nova categoria:") || "").trim()
-                          if (!value) return
-                        }
+                onChange={async (event) => {
+                  let value = event.target.value
+                  if (value === "__new__") {
+                    value =
+                      (await prompt({
+                        title: "Nova categoria",
+                        placeholder: "Nome da categoria",
+                        confirmLabel: "Criar",
+                      })) ?? ""
+                    if (!value) return
+                  }
                         const next = links.map((item, itemIndex) =>
                           itemIndex === index ? { ...item, grupo: value } : item,
                         )
