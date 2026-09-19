@@ -18,6 +18,7 @@ import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 import { Dot, toneFromKey } from "@/components/app/dot"
 import { useConfirm } from "@/components/app/confirm"
+import { ProjectLoadChart } from "@/components/app/charts"
 import { EmptyState } from "@/components/app/empty-state"
 import { Panel } from "@/components/app/panel"
 import { ScreenHeader } from "@/components/app/screen-header"
@@ -168,6 +169,7 @@ function ProjectCard({ project, onOpen }: { project: Project; onOpen: (name: str
 
 function ProjectList({ onOpen }: { onOpen: (name: string) => void }) {
   const projects = useProjects()
+  const tasks = useTasks()
   const [showArchived, setShowArchived] = useState(false)
   const overlays = useOverlays()
 
@@ -176,8 +178,17 @@ function ProjectList({ onOpen }: { onOpen: (name: string) => void }) {
     showArchived ? isArchived(project) : !isArchived(project),
   )
 
+  const tones = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const project of projects.data ?? []) {
+      map.set(project.name, `var(--app-dot-${toneFromKey(project.name)})`)
+    }
+    map.set("Sem projeto", "var(--rf-chart-2)")
+    return map
+  }, [projects.data])
+
   return (
-    <div className="flex flex-col gap-rf-5">
+    <div className="flex min-w-0 flex-col gap-rf-5">
       <ScreenHeader
         title={showArchived ? "Projetos ocultos" : "Projetos"}
         description={
@@ -212,6 +223,15 @@ function ProjectList({ onOpen }: { onOpen: (name: string) => void }) {
           )
         }
       />
+
+      {!showArchived && (tasks.data ?? []).length ? (
+        <Panel
+          title="Carga por projeto"
+          description="Demandas não concluídas por projeto, do maior para o menor."
+        >
+          <ProjectLoadChart tasks={tasks.data ?? []} tones={tones} />
+        </Panel>
+      ) : null}
 
       {projects.isPending ? (
         <div className="grid gap-rf-4 md:grid-cols-2 xl:grid-cols-3">
@@ -275,7 +295,7 @@ function ArchivedRow({ project, onOpen }: { project: Project; onOpen: (name: str
         type="button"
         variant="outline"
         size="sm"
-        className="text-[var(--app-dot-green)]"
+        className="text-[var(--rf-success)]"
         disabled={save.isPending}
         onClick={() =>
           save.mutate(
@@ -350,7 +370,7 @@ function ProjectCentral({
           : "Nova demanda"
 
   return (
-    <div className="flex flex-col gap-rf-5">
+    <div className="flex min-w-0 flex-col gap-rf-5">
       <div className="flex flex-wrap items-center gap-rf-2">
         <Button type="button" variant="ghost" size="sm" onClick={onBack}>
           ‹ Projetos

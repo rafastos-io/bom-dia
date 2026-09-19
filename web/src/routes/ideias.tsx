@@ -50,7 +50,7 @@ export function IdeiasPage() {
   }
 
   return (
-    <div className="flex flex-col gap-rf-5">
+    <div className="flex min-w-0 flex-col gap-rf-5">
       <ScreenHeader title="Ideias" description="Guarde o que não pode se perder." />
 
       <Panel

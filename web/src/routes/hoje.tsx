@@ -32,7 +32,7 @@ export function HojePage() {
   const failed = tasks.isError || projects.isError
 
   return (
-    <div className="flex flex-col gap-rf-5">
+    <div className="flex min-w-0 flex-col gap-rf-5">
       <Dashboard
         onOpenAssistant={openAssistant}
         onNewTask={() => overlays.openTask(null, { tipo: "tarefa" })}

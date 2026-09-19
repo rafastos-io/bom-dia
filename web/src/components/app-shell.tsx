@@ -8,9 +8,11 @@ import {
 } from "@rafastos/ui/tooltip"
 import { cn } from "cn"
 import { LogOut, Moon, Settings2, Sun } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 import { useMemo, useState } from "react"
-import { NavLink, Outlet, useNavigate } from "react-router"
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router"
 import { AREAS, type AreaDef, type AreaId } from "@/lib/areas"
+import { rfSlideUp, rfTransition } from "@/lib/motion"
 import { useProjects, useTasks } from "@/lib/queries"
 import { archivedIndex, areaCounts } from "@/lib/tasks"
 import { MascotAvatar } from "./app/mascot"
@@ -114,6 +116,8 @@ function TabBarItem({ area, count }: { area: AreaDef; count: number }) {
 export function AppShell() {
   const counts = useAreaCounts()
   const { resolved: theme, toggleTheme } = useTheme()
+  const location = useLocation()
+  const reduceMotion = useReducedMotion()
   const navigate = useNavigate()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSeq, setSettingsSeq] = useState(0)
@@ -240,9 +244,16 @@ export function AppShell() {
 
           {/* Conteúdo */}
           <main className="min-[860px]:pl-[76px]">
-            <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-rf-5 px-rf-4 pt-rf-5 pb-[calc(96px+env(safe-area-inset-bottom))] min-[860px]:px-rf-6 min-[860px]:py-rf-6">
+            <motion.div
+              key={location.pathname}
+              initial={reduceMotion ? false : "initial"}
+              animate="animate"
+              variants={rfSlideUp}
+              transition={rfTransition.default}
+              className="mx-auto flex min-w-0 w-full max-w-[1280px] flex-col gap-rf-5 px-rf-4 pt-rf-5 pb-[calc(96px+env(safe-area-inset-bottom))] min-[860px]:px-rf-6 min-[860px]:py-rf-6"
+            >
               <Outlet />
-            </div>
+            </motion.div>
           </main>
 
           {/* Tab bar — mobile */}

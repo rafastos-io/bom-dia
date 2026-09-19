@@ -164,7 +164,6 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
 | Cutover | dados congelados + subdomínio de validação + rollback |
 
 ## Registro de fases concluídas
-
 - **F0 — Fundação (17/09/2026)** · Criados: `opencode.json`, `PLANO-BOMDIA-V3.md`,
   `package.json` raiz, `server/` (Hono + TS + ESLint + Vitest, rota `/health`),
   `Dockerfile` v3 multi-stage, `.dockerignore`, `web/scripts/runway-mascot.mjs` e
@@ -250,3 +249,12 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
   **AppDialog** (Ajustes, Projeto, WhatsApp e Poohzera viram bottom-sheet <=619px). VPS reiniciada
   com autorização de Rafael: 13 containers `OK`, Horizon/webhook `OK`, bomdia e Design System em
   HTTP 200. Restam: backup semanal Turso → R2 e rotação da chave Runway.
+- **Extras do DS — gráficos e animações (18/09/2026)** · Instalado `recharts@3` (peer do pacote) e
+  trazidos os elementos de **chart** (`ChartContainer`/`ChartTooltip`) com dados reais: KPIs na
+  Hoje (ativas/atrasadas/concluídas/alta prioridade), "Prazos dos próximos 7 dias",
+  "Status das demandas" (donut) e "Carga por projeto" (barras por projeto, na página Projetos).
+  **Movimento** com os tokens do DS espelhados em `web/src/lib/motion.ts`: transição de rota no
+  shell e entrada escalonada dos cards, sempre com `useReducedMotion`. Auditoria do DS
+  **0/0** de novo (as rodadas intermediárias acharam e corrigiram: rolagem lateral na Agenda a
+  390 px por `min-width:auto` na cadeia + lista "Próximos", e o verde do "Feito" da Rotina).
+  Tudo local, aguardando autorização para publicar.

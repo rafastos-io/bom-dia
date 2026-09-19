@@ -1,7 +1,9 @@
 import { Button } from "@rafastos/ui/button"
-import { CalendarDays, ChevronRight, Plus, Sparkles } from "lucide-react"
+import { CalendarDays, ChevronRight, CircleCheck, Flag, Layers, Plus, Sparkles } from "lucide-react"
 import { useMemo } from "react"
+import { StatusDonut, WeeklyDueChart } from "@/components/app/charts"
 import { Dot, toneFromKey } from "@/components/app/dot"
+import { KpiCard } from "@/components/app/kpi-card"
 import { Panel } from "@/components/app/panel"
 import { ScreenHeader } from "@/components/app/screen-header"
 import { useOverlays } from "@/components/overlay-provider"
@@ -63,42 +65,47 @@ export function Dashboard({
   const status = useAiStatus()
   const overlays = useOverlays()
 
-  const { greeting, subtitle, top, next, activeCount } = useMemo(() => {
-    const archived = archivedIndex(projects.data ?? [])
-    const all = tasks.data ?? []
-    const active = all.filter(
-      (task) => task.status !== "concluida" && !isTaskHidden(task, archived, null),
-    )
-    const late = all.filter((task) => isLate(task) && !isTaskHidden(task, archived, null))
-    const name = status.data?.name
-    const greetingText = greetWord() + (name ? `, ${name}` : "")
+  const { greeting, subtitle, top, next, activeCount, visible, highCount, doneCount, lateCount } =
+    useMemo(() => {
+      const archived = archivedIndex(projects.data ?? [])
+      const all = tasks.data ?? []
+      const visibleTasks = all.filter((task) => !isTaskHidden(task, archived, null))
+      const active = visibleTasks.filter((task) => task.status !== "concluida")
+      const late = visibleTasks.filter((task) => isLate(task))
+      const name = status.data?.name
+      const greetingText = greetWord() + (name ? `, ${name}` : "")
 
-    const count = active.length
-    let subtitleText =
-      count === 0
-        ? "Tudo tranquilo por aqui."
-        : `Você tem ${count} tarefa${count > 1 ? "s" : ""} ativa${count > 1 ? "s" : ""}`
-    if (late.length > 0) {
-      subtitleText += ` · ${late.length} atrasada${late.length > 1 ? "s" : ""}`
-    }
+      const count = active.length
+      let subtitleText =
+        count === 0
+          ? "Tudo tranquilo por aqui."
+          : `Você tem ${count} tarefa${count > 1 ? "s" : ""} ativa${count > 1 ? "s" : ""}`
+      if (late.length > 0) {
+        subtitleText += ` · ${late.length} atrasada${late.length > 1 ? "s" : ""}`
+      }
 
-    const top3 = sortTasks(
-      active.filter((task) => (task.tipo || "tarefa") === "tarefa"),
-      "prioridade",
-    ).slice(0, 3)
+      const top3 = sortTasks(
+        active.filter((task) => (task.tipo || "tarefa") === "tarefa"),
+        "prioridade",
+      ).slice(0, 3)
 
-    const upcoming = active
-      .filter((task) => task.due_date)
-      .sort((a, b) => a.due_date.localeCompare(b.due_date))
+      const upcoming = active
+        .filter((task) => task.due_date)
+        .sort((a, b) => a.due_date.localeCompare(b.due_date))
 
-    return {
-      greeting: greetingText,
-      subtitle: subtitleText,
-      top: top3,
-      next: upcoming[0] ?? null,
-      activeCount: count,
-    }
-  }, [tasks.data, projects.data, status.data?.name])
+      return {
+        greeting: greetingText,
+        subtitle: subtitleText,
+        top: top3,
+        next: upcoming[0] ?? null,
+        activeCount: count,
+        visible: visibleTasks,
+        highCount: active.filter((task) => task.priority === "alta").length,
+        doneCount: visibleTasks.length - active.length,
+        lateCount: late.length,
+      }
+    }, [tasks.data, projects.data, status.data?.name])
+
 
   return (
     <section className="flex flex-col gap-rf-5">
@@ -121,6 +128,37 @@ export function Dashboard({
           </>
         }
       />
+
+      <div className="grid grid-cols-2 gap-rf-3 lg:grid-cols-4">
+        <KpiCard
+          label="Ativas"
+          value={activeCount}
+          tone="violet"
+          icon={<Layers className="size-4 text-[var(--app-ai)]" aria-hidden />}
+        />
+        <KpiCard
+          label="Atrasadas"
+          value={lateCount}
+          tone="pink"
+          icon={
+            <CalendarDays className="size-4 text-[var(--rf-error)]" aria-hidden />
+          }
+        />
+        <KpiCard
+          label="Concluídas"
+          value={doneCount}
+          tone="green"
+          icon={
+            <CircleCheck className="size-4 text-[var(--app-dot-green)]" aria-hidden />
+          }
+        />
+        <KpiCard
+          label="Alta prioridade"
+          value={highCount}
+          tone="amber"
+          icon={<Flag className="size-4 text-[var(--app-dot-amber)]" aria-hidden />}
+        />
+      </div>
 
       <div className="grid gap-rf-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <Panel
@@ -198,6 +236,18 @@ export function Dashboard({
           ) : (
             <p className="py-rf-2 rf-caption text-muted-foreground">Nenhum prazo à vista.</p>
           )}
+        </Panel>
+      </div>
+
+      <div className="grid gap-rf-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
+        <Panel
+          title="Prazos dos próximos 7 dias"
+          description="O que vence nesta semana (demandas não concluídas)."
+        >
+          <WeeklyDueChart tasks={visible} />
+        </Panel>
+        <Panel title="Status das demandas" description="Onde as coisas estão agora.">
+          <StatusDonut tasks={visible} />
         </Panel>
       </div>
 

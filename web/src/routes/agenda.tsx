@@ -102,7 +102,7 @@ export function AgendaPage() {
   }, [tasks.data, projects.data, month])
 
   return (
-    <div className="flex flex-col gap-rf-5">
+    <div className="flex min-w-0 flex-col gap-rf-5">
       <ScreenHeader
         title="Agenda"
         description={`${MESES[month.getMonth()]} ${month.getFullYear()} · prazos no calendário`}
@@ -158,7 +158,7 @@ export function AgendaPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-7">
+            <div className="grid grid-cols-[repeat(7,minmax(0,1fr))]">
               {WEEKDAYS.map((weekday) => (
                 <div
                   key={weekday}
@@ -170,7 +170,7 @@ export function AgendaPage() {
             </div>
 
             <div
-              className="grid grid-cols-7 overflow-hidden rounded-[var(--rf-radius-card)] border border-[var(--rf-border)]"
+              className="grid grid-cols-[repeat(7,minmax(0,1fr))] overflow-hidden rounded-[var(--rf-radius-card)] border border-[var(--rf-border)]"
               style={{ gridTemplateRows: `repeat(${semanas}, minmax(92px, 1fr))` }}
             >
               {cells.map((cell) => (
@@ -179,7 +179,7 @@ export function AgendaPage() {
                   type="button"
                   onClick={() => overlays.openTask(null, { due_date: cell.iso })}
                   className={cn(
-                    "flex min-h-23 flex-col gap-1 border-r border-b border-[var(--rf-border)] p-1.5 text-left transition-colors outline-none last:border-r-0 hover:bg-[var(--rf-hover)]/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
+                    "flex min-h-23 min-w-0 flex-col gap-1 border-r border-b border-[var(--rf-border)] p-1.5 text-left transition-colors outline-none last:border-r-0 hover:bg-[var(--rf-hover)]/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
                     !cell.inMonth && "opacity-40",
                     cell.isToday && "bg-[var(--app-ai-soft)]/40",
                   )}
@@ -196,7 +196,7 @@ export function AgendaPage() {
                   >
                     {cell.day}
                   </span>
-                  <span className="flex flex-col gap-0.5">
+                  <span className="flex min-w-0 flex-col gap-0.5">
                     {cell.items.slice(0, 3).map((task) => (
                       <span
                         key={task.id}
@@ -215,7 +215,7 @@ export function AgendaPage() {
                         }}
                         title={task.title}
                         className={cn(
-                          "flex items-center gap-1 truncate rounded-[6px] px-1 py-0.5 text-[10px] leading-tight",
+                          "flex min-w-0 items-center gap-1 truncate rounded-[6px] px-1 py-0.5 text-[10px] leading-tight",
                           task.status === "concluida" &&
                             "text-muted-foreground line-through opacity-70",
                         )}
@@ -258,15 +258,15 @@ export function AgendaPage() {
             </div>
           </Panel>
 
-          <div className="flex flex-col gap-rf-5">
+          <div className="flex min-w-0 flex-col gap-rf-5">
             <Panel title="Próximos" description="Os próximos prazos com data.">
               {proximos.length ? (
-                <ol className="flex flex-col gap-rf-2">
+                <ol className="flex min-w-0 flex-col gap-rf-2">
                   {proximos.map((task) => {
                     const [, monthNum, day] = task.due_date.split("-")
                     const weekday = SHORT_WEEKDAYS[new Date(task.due_date + "T12:00:00").getDay()]
                     return (
-                      <li key={task.id}>
+                      <li key={task.id} className="min-w-0">
                         <button
                           type="button"
                           onClick={() => overlays.openTask(task.id)}
@@ -277,13 +277,13 @@ export function AgendaPage() {
                             <span className="text-lg font-bold text-foreground">{day}</span>
                           </span>
                           <span className="flex min-w-0 flex-1 flex-col gap-rf-1">
-                            <span className="flex items-center gap-rf-2">
+                            <span className="flex min-w-0 items-center gap-rf-2">
                               <Dot tone={PRIO_TONE[task.priority]} />
                               <span className="truncate text-sm font-medium text-foreground">
                                 {task.title}
                               </span>
                             </span>
-                            <span className="truncate rf-caption text-muted-foreground">
+                            <span className="min-w-0 truncate rf-caption text-muted-foreground">
                               {task.projeto || "Sem projeto"} · {monthNum}/{day}
                             </span>
                           </span>
@@ -299,16 +299,18 @@ export function AgendaPage() {
 
             <Panel title="Sem data" description="Demandas que ainda não têm prazo.">
               {semPrazo.length ? (
-                <ul className="flex flex-col gap-rf-2">
+                <ul className="flex min-w-0 flex-col gap-rf-2">
                   {semPrazo.slice(0, 5).map((task) => (
-                    <li key={task.id}>
+                    <li key={task.id} className="min-w-0">
                       <button
                         type="button"
                         onClick={() => overlays.openTask(task.id)}
                         className="flex w-full items-center gap-rf-2 rounded-[var(--rf-radius-card)] px-rf-2 py-rf-2 text-left transition-colors outline-none hover:bg-[var(--rf-hover)]/60 focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         <Dot tone={task.projeto ? toneFromKey(task.projeto) : PRIO_TONE[task.priority]} />
-                        <span className="truncate rf-caption text-foreground">{task.title}</span>
+                        <span className="min-w-0 truncate rf-caption text-foreground">
+                          {task.title}
+                        </span>
                       </button>
                     </li>
                   ))}

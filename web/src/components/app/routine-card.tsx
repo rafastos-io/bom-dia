@@ -49,7 +49,7 @@ export function RoutineCard({ task }: { task: Task }) {
           <CalendarClock className="size-3.5" aria-hidden />
           <span>
             Período ·{" "}
-            <span className={done ? "text-[var(--app-dot-green)]" : "text-foreground"}>
+            <span className={done ? "text-[var(--rf-success)]" : "text-foreground"}>
               {done ? `Feito ${period}` : `Pendente ${period}`}
             </span>
           </span>
@@ -77,7 +77,7 @@ export function RoutineCard({ task }: { task: Task }) {
           type="button"
           size="sm"
           variant={done ? "secondary" : "default"}
-          className={done ? "text-[var(--app-dot-green)]" : undefined}
+          className={done ? "text-[var(--rf-success)]" : undefined}
           disabled={toggle.isPending}
           onClick={() => toggle.mutate({ id: task.id, done: !done })}
         >

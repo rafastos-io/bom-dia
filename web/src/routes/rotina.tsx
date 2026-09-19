@@ -14,7 +14,7 @@ export function RotinaPage() {
   const failed = tasks.isError || projects.isError
 
   return (
-    <div className="flex flex-col gap-rf-5">
+    <div className="flex min-w-0 flex-col gap-rf-5">
       <ScreenHeader
         title="Rotina"
         description="Pequenas ações, consistência real."

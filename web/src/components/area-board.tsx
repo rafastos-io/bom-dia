@@ -1,10 +1,12 @@
 import { Button } from "@rafastos/ui/button"
 import { Skeleton } from "@rafastos/ui/skeleton"
 import { RotateCcw } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 import { EmptyState } from "@/components/app/empty-state"
 import { RoutineCard } from "@/components/app/routine-card"
 import { TaskTable } from "@/components/app/task-table"
 import { KanbanBoard, TaskCard, TaskRow } from "./task-items"
+import { RF_STAGGER, rfSlideUp, rfTransition } from "@/lib/motion"
 import type { Task } from "@/lib/types"
 import type { ViewKey } from "@/lib/tasks"
 
@@ -31,6 +33,18 @@ export function TaskBoard({
   cards = "task",
   mascot,
 }: TaskBoardProps) {
+  const reduceMotion = useReducedMotion()
+  const motionProps = reduceMotion
+    ? {}
+    : {
+        initial: "initial" as const,
+        animate: "animate" as const,
+        variants: { animate: { transition: { staggerChildren: RF_STAGGER } } },
+      }
+  const itemProps = reduceMotion
+    ? {}
+    : { variants: rfSlideUp, transition: rfTransition.default }
+
   if (!tasks.length) {
     return <EmptyState mascot={mascot} title={emptyMessage} description={emptyHint} />
   }
@@ -50,20 +64,30 @@ export function TaskBoard({
 
   if (cards === "routine") {
     return (
-      <div className="grid grid-cols-1 gap-rf-4 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-3">
+      <motion.div
+        className="grid grid-cols-1 gap-rf-4 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-3"
+        {...motionProps}
+      >
         {tasks.map((task) => (
-          <RoutineCard key={task.id} task={task} />
+          <motion.div key={task.id} {...itemProps}>
+            <RoutineCard task={task} />
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 gap-rf-4 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-3">
+    <motion.div
+      className="grid grid-cols-1 gap-rf-4 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-3"
+      {...motionProps}
+    >
       {tasks.map((task) => (
-        <TaskCard key={task.id} task={task} hideProjeto={hideProjeto} />
+        <motion.div key={task.id} {...itemProps}>
+          <TaskCard task={task} hideProjeto={hideProjeto} />
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   )
 }
 
