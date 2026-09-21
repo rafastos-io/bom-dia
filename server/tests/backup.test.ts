@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { createClient } from "@libsql/client"
 import {
   backupDateOf,
   backupDue,
@@ -6,6 +10,7 @@ import {
   backupKeyFor,
   pruneBackups,
   runBackup,
+  verifySnapshot,
 } from "../src/backup.js"
 import { parseListXml } from "../src/r2.js"
 
@@ -110,6 +115,29 @@ describe("parseListXml", () => {
 
   it("sem objetos devolve lista vazia", () => {
     expect(parseListXml("<ListBucketResult></ListBucketResult>")).toEqual([])
+  })
+})
+
+describe("verifySnapshot", () => {
+  it("aceita banco integro e recusa arquivo corrompido", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "bomdia-backup-test-"))
+    try {
+      const good = join(dir, "bom.db")
+      const client = createClient({ url: `file:${good}` })
+      await client.execute("CREATE TABLE ok (id INTEGER PRIMARY KEY)")
+      await client.close()
+      await expect(verifySnapshot(good)).resolves.toBeUndefined()
+
+      const bad = join(dir, "bad.db")
+      await writeFile(bad, "isso nao e um banco")
+      await expect(verifySnapshot(bad)).rejects.toThrow()
+    } finally {
+      // No Windows o libsql segura o arquivo aberto por mais tempo; o diretorio
+      // fica no temp e o SO limpa depois. O importante e a verificacao acima.
+      await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(
+        () => undefined,
+      )
+    }
   })
 })
 

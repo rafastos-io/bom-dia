@@ -114,6 +114,20 @@ export async function snapshotTo(dest: string): Promise<void> {
   }
 }
 
+/** Abre o snapshot baixado e confere a integridade antes de enviar. */
+export async function verifySnapshot(file: string): Promise<void> {
+  const local = createClient({ url: `file:${file}` })
+  try {
+    const result = await local.execute("PRAGMA integrity_check")
+    const verdict = String(result.rows[0]?.integrity_check ?? "")
+    if (verdict !== "ok") {
+      throw new Error(`integridade do snapshot: ${verdict || "sem resposta"}`)
+    }
+  } finally {
+    await local.close()
+  }
+}
+
 export type BackupResult = {
   key: string
   size: number
@@ -130,13 +144,15 @@ export async function runBackup(now = new Date()): Promise<BackupResult> {
   try {
     const file = join(dir, "snapshot.db")
     await snapshotTo(file)
+    await verifySnapshot(file)
     const bytes = new Uint8Array(await readFile(file))
     const key = backupKeyFor(now)
     await r2Put(key, bytes, "application/vnd.sqlite3")
     const pruned = await pruneBackups()
     return { key, size: bytes.byteLength, pruned, at: now.toISOString() }
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    // No Windows o libsql pode segurar o arquivo por um instante apos o close.
+    await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
   }
 }
 
