@@ -38,13 +38,17 @@ if (command === "once" || command === "backfill") {
       (config.dryRun ? " — dry-run" : ""),
   )
 } else {
-  const first = await syncFull(config, state)
-  if (!config.dryRun) await saveState(config.statePath, state)
-  console.log(
-    `[radar] varredura inicial: ${first.sent} notas, ${first.entries} entradas, ` +
-      `${first.deleted} removidas (${first.scanned} arquivos)` +
-      (config.dryRun ? " — dry-run" : ""),
-  )
+  try {
+    const first = await syncFull(config, state)
+    if (!config.dryRun) await saveState(config.statePath, state)
+    console.log(
+      `[radar] varredura inicial: ${first.sent} notas, ${first.entries} entradas, ` +
+        `${first.deleted} removidas (${first.scanned} arquivos)` +
+        (config.dryRun ? " — dry-run" : ""),
+    )
+  } catch (error) {
+    console.error(`[radar] varredura inicial falhou (o watch tenta de novo): ${error.message}`)
+  }
   startWatch(config, state)
   console.log(`[radar] observando ${config.centralDir} (Ctrl+C para sair)`)
 }
