@@ -57,3 +57,50 @@ export function buildKey(ownerType: string, ownerId: number, filename: string): 
   const uid = randomBytes(8).toString("hex")
   return `${R2.prefix}/${ownerType}/${ownerId}/${uid}-${safeName(filename)}`
 }
+
+export type R2Object = { key: string; size: number; lastModified: string }
+
+function decodeXml(value: string): string {
+  return value
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'")
+    .replaceAll("&amp;", "&")
+}
+
+/** Extrai os objetos de um XML do ListObjectsV2 (puro, testavel). */
+export function parseListXml(xml: string): R2Object[] {
+  const objects: R2Object[] = []
+  for (const match of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+    const block = match[1] ?? ""
+    const key = block.match(/<Key>([\s\S]*?)<\/Key>/)?.[1]
+    if (key === undefined) continue
+    objects.push({
+      key: decodeXml(key),
+      size: Number(block.match(/<Size>(\d+)<\/Size>/)?.[1] ?? "0"),
+      lastModified: block.match(/<LastModified>([\s\S]*?)<\/LastModified>/)?.[1] ?? "",
+    })
+  }
+  return objects
+}
+
+/** Lista todos os objetos do bucket sob um prefixo (pagina via continuation-token). */
+export async function r2List(prefix: string): Promise<R2Object[]> {
+  if (!r2Enabled()) throw new Error("R2 nao configurado")
+  const base = `${R2.endpoint}/${encodeURIComponent(R2.bucket)}`
+  const objects: R2Object[] = []
+  let token = ""
+  for (;;) {
+    const params = new URLSearchParams({ "list-type": "2", prefix })
+    if (token) params.set("continuation-token", token)
+    const res = await aws().fetch(`${base}?${params.toString()}`, { method: "GET" })
+    if (!res.ok) throw new Error(`R2 LIST ${res.status} ${res.statusText}`)
+    const xml = await res.text()
+    objects.push(...parseListXml(xml))
+    token = decodeXml(
+      xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1] ?? "",
+    )
+    if (!token) return objects
+  }
+}

@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server"
 import { createApp } from "./app.js"
+import { startBackupScheduler } from "./backup.js"
 import { PORT, apiKeyOk, loadConfig } from "./config.js"
 import { authConfigured } from "./auth.js"
 import { createDatabase } from "./db/client.js"
@@ -10,6 +11,7 @@ const { client, db } = createDatabase()
 await ensureSchema(client)
 
 const app = createApp(db)
+startBackupScheduler()
 
 serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, async (info) => {
   console.log(`[bomdia] escutando em http://0.0.0.0:${info.port}`)
