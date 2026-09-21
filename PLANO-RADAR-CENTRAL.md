@@ -150,19 +150,26 @@ um servidor local (banco de teste) → `once` enviou 287 notas, a segunda passad
 (idempotência) e o `GET /api/radar` devolveu **12 dias / 614 itens** de progresso e **151 itens
 no ar** (mais velho com 19 dias). Nota: nada foi enviado à produção ainda.
 
-### R3 — Front (uma sessão)
-- [ ] Rota `/radar` + item no rail (ícone Lucide próprio; fora de `AREAS`/contagens).
-- [ ] Tela com as views **Progresso** (agrupado por dia) e **No ar** (idade), seguindo
-      `Panel`/`ScreenHeader`/`EmptyState` e os tokens do DS.
-- [ ] Estados: carregando, erro, vazio ("nada no ar — bom sinal").
-- [ ] (Fim do MVP) card-resumo na Hoje se o uso pedir.
-- [ ] Volume real medido no backfill (21/09): 614 itens de progresso em 12 dias e 151 no ar —
-      agrupar por dia com recolhimento e limitar a lista inicial.
+### R3 — Front (uma sessão) ✅ concluída (21/09)
+- [x] Rota `/radar` + item próprio no rail (fora de `AREAS`/contagens; 6º item na tab bar mobile)
+- [x] Views **Progresso** (por dia, 14 dias, dia atual aberto) e **No ar** (mais velhos primeiro,
+      com idade e tom por faixa), via `Panel`/`ScreenHeader`/`Segmented`/`EmptyState` do app
+- [x] Estados: carregando (skeleton), erro com retry, vazio ("nada no ar") e **sem sincronização**
+      ("o agente ainda não sincronizou a CENTRAL")
+- [x] Volume real tratado: dia recolhível, `line-clamp-3` no texto com tooltip, "ver os outros N"
+      por dia e paginação de 20 em 20 no "No ar"
+- [ ] (Fim do MVP) card-resumo na Hoje se o uso pedir
+
+Publicado em `da7ed35` (21/09/2026): auditoria do DS **0/0** na rota `/radar` (2 temas,
+390/768/1024/1440 px, sessão real), console limpo e capturas em `artifacts/screens-radar/`
+(5 PNGs: progresso e no ar, claro/escuro, desktop e mobile). Em produção a página abre no estado
+"agente ainda não sincronizou" até o `SERVICE_TOKEN` existir.
 
 ### R4 — Verificação e publicação
-- [ ] `typecheck`/`lint`/`test` verdes; auditoria DS 0/0 nos 2 temas (390–1440 px); capturas.
-- [ ] Deploy pela `main`; token no Coolify; agente rodando na máquina de Rafael.
-- [ ] Uso real por 2–3 dias e ajuste de ruído/gosto.
+- [x] `typecheck`/`lint`/`build` verdes; auditoria 0/0; capturas conferidas
+- [x] Deploy pela `main` (`da7ed35`), `/health` ok e bundle novo servido
+- [ ] Cadastrar `SERVICE_TOKEN` no Coolify e ligar o agente (Rafael) + backfill real
+- [ ] Usar por 2–3 dias e ajustar ruído/gosto da tela
 
 ### Fase opcional (depois do MVP)
 - [ ] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`).
