@@ -1,0 +1,18 @@
+{
+  "name": "bomdia-radar-agent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Agente local do radar: observa a CENTRAL e envia deltas ao Bom Dia.",
+  "scripts": {
+    "once": "node --env-file-if-exists=.env src/index.js once",
+    "backfill": "node --env-file-if-exists=.env src/index.js backfill",
+    "watch": "node --env-file-if-exists=.env src/index.js watch",
+    "summary": "node --env-file-if-exists=.env src/summary.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "gray-matter": "^4.0.3"
+  }
+}

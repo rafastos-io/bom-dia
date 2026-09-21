@@ -9,6 +9,8 @@
     "build:server": "npm --prefix server run build",
     "typecheck": "npm --prefix web run typecheck && npm --prefix server run typecheck",
     "lint": "npm --prefix web run lint && npm --prefix server run lint",
-    "test": "npm --prefix server run test"
+    "test": "npm --prefix server run test && npm --prefix agent run test",
+    "agent:watch": "npm --prefix agent run watch",
+    "agent:summary": "npm --prefix agent run summary"
   }
 }
