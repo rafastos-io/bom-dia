@@ -8,6 +8,7 @@ import {
   apiAttachments,
   apiNotes,
   apiProjects,
+  apiRadar,
   apiSubtasks,
   apiTasks,
   uploadAttachment,
@@ -27,6 +28,7 @@ export const qk = {
   tasks: ["tasks"] as const,
   projects: ["projects"] as const,
   aiStatus: ["ai-status"] as const,
+  radar: ["radar"] as const,
   notes: (projectId: number) => ["notes", projectId] as const,
   attachments: (ownerType: string, ownerId: number) =>
     ["attachments", ownerType, ownerId] as const,
@@ -78,6 +80,16 @@ export function useBulkDeleteTasks() {
 
 export function useProjects() {
   return useQuery({ queryKey: qk.projects, queryFn: apiProjects.list })
+}
+
+/** Radar da CENTRAL: leitura derivada (somente leitura no vault). */
+export function useRadar() {
+  return useQuery({
+    queryKey: qk.radar,
+    queryFn: apiRadar.digest,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
 }
 
 export function useAiStatus() {

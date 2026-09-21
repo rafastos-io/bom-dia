@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Layers,
   Lightbulb,
+  Radar,
   Repeat2,
   Sun,
   type LucideIcon,
@@ -55,4 +56,22 @@ export function areaByPath(pathname: string): AreaDef {
   if (pathname.startsWith("/ideias")) return AREAS[3]
   if (pathname.startsWith("/projetos")) return AREAS[4]
   return AREAS[0]
+}
+
+export type NavLinkDef = {
+  label: string
+  caption: string
+  path: string
+  icon: LucideIcon
+}
+
+/**
+ * Radar da CENTRAL: tela de servico, fora das 5 areas de tarefas
+ * (não entra em `AreaId`/`areaCounts` — ver PLANO-RADAR-CENTRAL.md, D4).
+ */
+export const RADAR: NavLinkDef = {
+  label: "Radar",
+  caption: "Progresso da CENTRAL",
+  path: "/radar",
+  icon: Radar,
 }

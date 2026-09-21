@@ -12,7 +12,7 @@ import { Bell, LogOut, Moon, Settings2, Sun } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 import { useMemo, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router"
-import { AREAS, type AreaDef, type AreaId } from "@/lib/areas"
+import { AREAS, RADAR, type AreaId, type NavLinkDef } from "@/lib/areas"
 import { rfSlideUp, rfTransition } from "@/lib/motion"
 import { useProjects, useTasks } from "@/lib/queries"
 import { archivedIndex, areaCounts, fmtDate, isTaskHidden } from "@/lib/tasks"
@@ -51,13 +51,13 @@ function IconTooltip({
 }
 
 /** Item do rail escuro (só ícone, com contador em bubble e tooltip). */
-function RailItem({ area, count }: { area: AreaDef; count: number }) {
+function RailItem({ item, count = 0 }: { item: NavLinkDef; count?: number }) {
   return (
-    <IconTooltip label={area.label}>
+    <IconTooltip label={item.label}>
       <NavLink
-        to={area.path}
-        end={area.path === "/"}
-        aria-label={`${area.label}${count ? ` (${count})` : ""}`}
+        to={item.path}
+        end={item.path === "/"}
+        aria-label={`${item.label}${count ? ` (${count})` : ""}`}
         className={({ isActive }) =>
           cn(
             "relative flex size-11 items-center justify-center rounded-[var(--rf-radius-card)] outline-none transition-colors",
@@ -68,7 +68,7 @@ function RailItem({ area, count }: { area: AreaDef; count: number }) {
           )
         }
       >
-        <area.icon className="size-5" strokeWidth={2} aria-hidden />
+        <item.icon className="size-5" strokeWidth={2} aria-hidden />
         {count > 0 ? (
           <span className="absolute top-1.5 right-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-action px-1 font-mono text-[10px] leading-none text-action-foreground">
             {count}
@@ -79,11 +79,11 @@ function RailItem({ area, count }: { area: AreaDef; count: number }) {
   )
 }
 
-function TabBarItem({ area, count }: { area: AreaDef; count: number }) {
+function TabBarItem({ item, count = 0 }: { item: NavLinkDef; count?: number }) {
   return (
     <NavLink
-      to={area.path}
-      end={area.path === "/"}
+      to={item.path}
+      end={item.path === "/"}
       className={({ isActive }) =>
         cn(
           "relative flex h-16 flex-col items-center justify-center gap-1 outline-none",
@@ -101,7 +101,7 @@ function TabBarItem({ area, count }: { area: AreaDef; count: number }) {
             aria-hidden
           />
           <span className="relative">
-            <area.icon className="size-6" strokeWidth={2} aria-hidden />
+            <item.icon className="size-6" strokeWidth={2} aria-hidden />
             {count > 0 ? (
               <span className="absolute -top-1.5 -right-2.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-action px-1 font-mono text-[10px] leading-none text-action-foreground">
                 {count}
@@ -109,7 +109,7 @@ function TabBarItem({ area, count }: { area: AreaDef; count: number }) {
             ) : null}
           </span>
           <span className={cn("text-[11px] leading-none", isActive && "font-semibold")}>
-            {area.label}
+            {item.label}
           </span>
         </>
       )}
@@ -263,8 +263,9 @@ export function AppShell() {
 
             <nav aria-label="Áreas do Bom Dia" className="flex flex-1 flex-col items-center gap-rf-1">
               {AREAS.map((area) => (
-                <RailItem key={area.id} area={area} count={counts[area.id]} />
+                <RailItem key={area.id} item={area} count={counts[area.id]} />
               ))}
+              <RailItem item={RADAR} />
             </nav>
 
             <div className="flex flex-col items-center gap-rf-1">
@@ -360,11 +361,12 @@ export function AppShell() {
           {/* Tab bar — mobile */}
           <nav
             aria-label="Áreas do Bom Dia"
-            className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[var(--rf-border)] bg-[color-mix(in_srgb,var(--rf-bg)_88%,transparent)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl min-[860px]:hidden"
+            className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-[var(--rf-border)] bg-[color-mix(in_srgb,var(--rf-bg)_88%,transparent)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl min-[860px]:hidden"
           >
             {AREAS.map((area) => (
-              <TabBarItem key={area.id} area={area} count={counts[area.id]} />
+              <TabBarItem key={area.id} item={area} count={counts[area.id]} />
             ))}
+            <TabBarItem item={RADAR} />
           </nav>
 
           <SettingsDialog

@@ -4,6 +4,7 @@ import type {
   Note,
   ParsedPayload,
   Project,
+  RadarDigest,
   Task,
   TaskPayload,
   WhatsappPayload,
@@ -158,8 +159,7 @@ export function uploadAttachment(
 }
 
 export const apiAi = {
-  status: () => api<AiStatus>("GET", "/api/ai/status"),
-  config: (payload: { openai_api_key?: string; name?: string }) =>
+  status: () => api<AiStatus>("GET", "/api/ai/status"),config: (payload: { openai_api_key?: string; name?: string }) =>
     api<{ ok?: boolean; configured: boolean; name: string }>(
       "POST",
       "/api/ai/config",
@@ -168,6 +168,10 @@ export const apiAi = {
   parse: (text: string) => api<ParsedPayload>("POST", "/api/ai/parse", { text }),
   whatsapp: (payload: WhatsappPayload) =>
     api<WhatsappResult>("POST", "/api/ai/whatsapp", payload),
+}
+
+export const apiRadar = {
+  digest: () => api<RadarDigest>("GET", "/api/radar"),
 }
 
 export const apiOpen = {

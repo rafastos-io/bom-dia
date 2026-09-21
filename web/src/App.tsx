@@ -7,6 +7,7 @@ import { HojePage } from "@/routes/hoje"
 import { IdeiasPage } from "@/routes/ideias"
 import { LoginPage } from "@/routes/login"
 import { ProjetosPage } from "@/routes/projetos"
+import { RadarPage } from "@/routes/radar"
 import { RotinaPage } from "@/routes/rotina"
 
 export function App() {
@@ -27,6 +28,7 @@ export function App() {
         <Route path="rotina" element={<RotinaPage />} />
         <Route path="ideias" element={<IdeiasPage />} />
         <Route path="projetos" element={<ProjetosPage />} />
+        <Route path="radar" element={<RadarPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

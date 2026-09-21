@@ -162,3 +162,21 @@ export type WhatsappPayload = {
 export type WhatsappResult = {
   mensagem: string
 }
+
+export type RadarItem = {
+  text: string
+  kind: "progresso" | "aberto" | "proxima_acao" | "decisao" | string
+  section: string
+  note: string
+  path: string
+  date: string
+}
+
+export type RadarNoArItem = RadarItem & { ageDays: number }
+
+/** Leitura derivada da CENTRAL (somente leitura; ver PLANO-RADAR-CENTRAL.md). */
+export type RadarDigest = {
+  progresso: Array<{ date: string; items: RadarItem[] }>
+  noAr: RadarNoArItem[]
+  atualizadoEm: string
+}

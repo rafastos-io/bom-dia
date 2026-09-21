@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import { useNavigate } from "react-router"
 import { useOverlays } from "@/components/overlay-provider"
 import { useTheme } from "@/components/theme-provider"
-import { AREAS } from "@/lib/areas"
+import { AREAS, RADAR } from "@/lib/areas"
 import { useProjects, useTasks } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -91,14 +91,24 @@ export function CommandPalette() {
       },
     ]
 
-    const areas: PaletteItem[] = AREAS.map((area) => ({
-      id: `area-${area.id}`,
-      label: area.label,
-      hint: "Ir para",
-      group: "Áreas",
-      icon: LayoutGrid,
-      run: () => navigate(area.path),
-    }))
+    const areas: PaletteItem[] = [
+      ...AREAS.map((area) => ({
+        id: `area-${area.id}`,
+        label: area.label,
+        hint: "Ir para",
+        group: "Áreas",
+        icon: LayoutGrid,
+        run: () => navigate(area.path),
+      })),
+      {
+        id: "area-radar",
+        label: RADAR.label,
+        hint: "Ir para",
+        group: "Áreas",
+        icon: RADAR.icon,
+        run: () => navigate(RADAR.path),
+      },
+    ]
 
     const taskItems: PaletteItem[] = (tasks.data ?? []).map((task) => ({
       id: `task-${task.id}`,
