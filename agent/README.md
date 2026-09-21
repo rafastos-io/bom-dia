@@ -33,11 +33,22 @@ npm run watch               # observa em tempo real
 
 ## Rodar como tarefa agendada (Windows)
 
-Opção A — sem admin: atalho na pasta Startup (foi o caminho usado em 21/09/2026).
-Crie um atalho para `run-forever.cmd` em `shell:startup` (Win+R → `shell:startup`), com
-"Executar: Minimizado". O wrapper reinicia o `watch` se ele cair.
+Opção A — **bandeja** (usada desde 21/09/2026): atalho na pasta Startup aponta para
+`tray\abrir-bandeja.vbs`, que abre um ícone na área de notificação sem console nenhum.
+No menu do ícone (clique com o botão direito):
 
-Opção B — com terminal elevado: tarefa no logon via `schtasks` (o `/Create` pede admin):
+- **Agente: ativo / parado** — status ao vivo (checa a cada 5 s);
+- **Abrir o Radar** (duplo clique no ícone também);
+- **Rodar agora** — dispara um `npm run once` e escreve no log;
+- **Iniciar/Parar agente** — liga e desliga o wrapper `run-forever.cmd`;
+- **Abrir log** / **Abrir pasta do agente**;
+- **Sair (para o agente)** — fecha a bandeja e para o agente.
+
+Se o ícone não aparecer na barra, procure em "outros ícones do sistema" (o `^`) e fixe.
+Há um atalho **BomDia Radar** também na Área de Trabalho para reabrir depois de sair.
+
+Opção B — sem bandeja: rode `run-forever.cmd` (com terminal elevado, se quiser a tarefa
+agendada via `schtasks`, que exige admin):
 
 ```powershell
 schtasks /Create /TN "BomDia Radar Agent" /SC ONLOGON /RL LIMITED /F `
