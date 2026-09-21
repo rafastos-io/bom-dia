@@ -33,6 +33,10 @@ Recomendadas: `OPENAI_API_KEY`, `OPENAI_MODEL`, `APP_ENV=production`,
 - Sem as quatro `R2_*`, o painel de anexos some (o resto funciona).
 - `OPENAI_API_KEY` no ambiente tem prioridade e **nunca** é gravada no banco.
 - Segredos são cadastrados apenas no Coolify (ou Shared Variables). Nunca no repositório.
+- Se o save da UI não persistir uma variável (visto em 21/09/2026), o caminho verificado é
+  cadastrar por dentro do container do Coolify, via Eloquent (`php artisan tinker`), criando a
+  linha de produção (o modelo espelha a de preview) com `is_runtime=true` e `is_buildtime=false`
+  — e depois **Redeploy** para o container nascer com o ambiente novo.
 
 ## Banco e backup
 

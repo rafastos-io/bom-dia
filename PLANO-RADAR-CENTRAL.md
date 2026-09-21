@@ -165,11 +165,21 @@ Publicado em `da7ed35` (21/09/2026): auditoria do DS **0/0** na rota `/radar` (2
 (5 PNGs: progresso e no ar, claro/escuro, desktop e mobile). Em produção a página abre no estado
 "agente ainda não sincronizou" até o `SERVICE_TOKEN` existir.
 
-### R4 — Verificação e publicação
+### R4 — Verificação e publicação ✅ ligado em produção (21/09)
 - [x] `typecheck`/`lint`/`build` verdes; auditoria 0/0; capturas conferidas
 - [x] Deploy pela `main` (`da7ed35`), `/health` ok e bundle novo servido
-- [ ] Cadastrar `SERVICE_TOKEN` no Coolify e ligar o agente (Rafael) + backfill real
+- [x] `SERVICE_TOKEN` e `AUTH_SECRET` no Coolify (produção + preview, runtime only) — o save da UI
+      não persistia; cadastradas via Eloquent dentro do container e aplicadas com Redeploy
+- [x] Backfill real: **288 notas / 1.483 entradas**; reexecução forçada devolveu `skipped=288`
+      (idempotente)
+- [x] Agente rodando no Windows: wrapper `run-forever.cmd` destacado + atalho na pasta Startup
+      (sem admin; `schtasks` exigia elevação)
 - [ ] Usar por 2–3 dias e ajustar ruído/gosto da tela
+
+Evidências de 21/09/2026: `POST /api/radar/ingest` respondendo 200 com o token real, log do container
+sem o aviso de `AUTH_SECRET` e sem erro de migração. Nota operacional: o Kaspersky Premium acusou
+falso positivo (detecção comportamental PDM) contra o binário do opencode — assinatura digital válida
+da Anomaly Innovations; o caminho ficou fora do escaneamento.
 
 ### Fase opcional (depois do MVP)
 - [ ] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`).

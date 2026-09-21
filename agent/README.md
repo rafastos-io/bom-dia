@@ -33,18 +33,18 @@ npm run watch               # observa em tempo real
 
 ## Rodar como tarefa agendada (Windows)
 
-Opção A — uma tarefa no logon com o wrapper que se autorrecupera:
+Opção A — sem admin: atalho na pasta Startup (foi o caminho usado em 21/09/2026).
+Crie um atalho para `run-forever.cmd` em `shell:startup` (Win+R → `shell:startup`), com
+"Executar: Minimizado". O wrapper reinicia o `watch` se ele cair.
+
+Opção B — com terminal elevado: tarefa no logon via `schtasks` (o `/Create` pede admin):
 
 ```powershell
 schtasks /Create /TN "BomDia Radar Agent" /SC ONLOGON /RL LIMITED /F `
   /TR "\"C:\Users\rafaa\VIBECODING\BomDia\agent\run-forever.cmd\""
 ```
 
-O `run-forever.cmd` reinicia o `watch` se ele sair e escreve `radar-agent.log` na
-própria pasta (não versionado).
-
-Opção B — sem wrapper: ação `node --env-file-if-exists=.env src\index.js watch`,
-iniciar em "Logon" e marcar "Reiniciar a tarefa se ela falhar" nas propriedades.
+O `run-forever.cmd` escreve `radar-agent.log` na própria pasta (não versionado).
 
 ## Diagnóstico
 
