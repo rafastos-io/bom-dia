@@ -54,8 +54,9 @@ npm run build:server   # build da API
 | `AUTH_USER` / `AUTH_PASSWORD` / `AUTH_SECRET` | Login e assinatura da sessão (cookie HttpOnly) |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Banco em produção |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | IA (a chave de ambiente tem prioridade e nunca é gravada) |
-| `R2_ENDPOINT` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Anexos (sem as 4, o upload some da UI) |
+| `R2_ENDPOINT` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Anexos (sem as 4, o upload some da UI) e backup semanal |
 | `R2_PREFIX` / `MAX_UPLOAD_MB` | Pasta e limite de upload (default `bomdia`, 25 MB) |
+| `BACKUP_INTERVAL_DAYS` / `BACKUP_RETENTION` | Janela e cópias mantidas do backup automático (default 7 dias, 12 cópias) |
 
 Segredos ficam **somente** no Coolify (produção) ou no ambiente local — nunca no repositório.
 

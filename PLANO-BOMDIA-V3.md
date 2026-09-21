@@ -140,7 +140,8 @@ Só adições. `/api/open` removido.
       (`ConfirmProvider`) e **bottom-sheet universal** no mobile (`AppDialog`) — deploy `c25aae6`
 - [x] VPS reiniciada (atualizações de segurança pendentes, autorizado por Rafael em 18/09):
       todos os 13 containers `OK`, Horizon/webhook autorreparo `OK`, bomdia e DS em HTTP 200
-- [ ] Backup semanal Turso → R2 (próximo)
+- [x] Backup semanal Turso → R2: automático no servidor (21/09, deploy `6239afd`)
+- [x] Backup manual sob demanda: `npm --prefix server run backup`
 - [ ] Rotacionar a chave Runway usada na geração dos assets (manual, quando quiser)
 
 ## Protocolo de acompanhamento
@@ -286,3 +287,16 @@ dependências ("bloqueada por"), histórico/atividade da tarefa.
   390 px por `min-width:auto` na cadeia + lista "Próximos", e o verde do "Feito" da Rotina).
   **Publicado em `3513de2`**: deploy `finished`, container healthy, `/health` v3, `/login` 200,
   bundle 1,1 MB (com recharts) e `/api/tasks` 401 sem sessão.
+- **Backup do Turso no R2 (21/09/2026)** · Export automático de dentro do próprio servidor: uma
+  réplica embutida do libSQL baixa o banco para um temporário, confere `PRAGMA integrity_check`,
+  envia para `R2 /<prefixo>/backups/bomdia-<data>.db` e apaga o temporário; retenção de 12 cópias
+  com poda. O agendador checa 30 s depois de subir (o deploy paga o atrasado) e a cada 6 h;
+  manual com `npm --prefix server run backup`. Evidências: 14 testes novos (**34/34** no server),
+  `typecheck`/`lint` verdes; em produção o boot registrou
+  `[backup] ok: bomdia/backups/bomdia-2026-09-21T13-21-12Z.db (128,0 KB)` e um backup manual
+  (`...T13-26-06Z.db`) cujo objeto no R2 começa com `SQLite format 3`, assinatura conferida.
+  Imprevistos: o runtime `node:22-slim` não tinha raízes de CA e o sync nativo falhava com
+  “TLS error: no valid native root CA certificates found” — corrigido com `ca-certificates` no
+  estágio runtime (`a49bcd7`). Pendência real achada no log do container: **`AUTH_SECRET` não está
+  definido no Coolify** (sessões caem a cada restart e usam o segredo padrão do código) —
+  cadastrar uma string aleatória de 32+ bytes e reiniciar.

@@ -39,7 +39,13 @@ Recomendadas: `OPENAI_API_KEY`, `OPENAI_MODEL`, `APP_ENV=production`,
 - Banco: **Turso** (`bomdia-rafastos-io`, região us-east-1). O SQLite antigo (`bomdia.db`) está
   arquivado em `C:\Users\rafaa\VIBECODING\BomDia-legacy\` como rollback dos dados.
 - Importação/reimportação: `server/scripts/import-sqlite.ts` (preserva ids, re-executável).
-- Backup: PITR do Turso; export semanal para o R2 é um próximo passo planejado.
+- Backup automático: o servidor baixa o banco (réplica embutida do libSQL) e envia para
+  `R2/<prefixo>/backups/bomdia-<data>.db`. Checa 30 s depois de subir e a cada 6 h; roda quando a
+  janela de 7 dias venceu e mantém as últimas 12 cópias (`BACKUP_INTERVAL_DAYS` e
+  `BACKUP_RETENTION`). Exige `TURSO_DATABASE_URL` remoto e as quatro `R2_*` (no Coolify, podem vir
+  por referência a shared variables, ex. `R2_BUCKET={{team.R2_BUCKET}}`).
+- Backup manual: `npm --prefix server run backup`.
+- O Turso mantém PITR contínuo como primeira linha de defesa; o export no R2 cobre a conta.
 
 ## Rollback
 
