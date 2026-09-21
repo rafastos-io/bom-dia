@@ -18,8 +18,9 @@ RUN npm run build
 
 FROM node:22-slim AS runtime
 # curl: o Coolify usa curl/wget no healthcheck padrao do container.
+# ca-certificates: o sync da replica embutida (backup) usa as raizes do sistema.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl \
+  && apt-get install -y --no-install-recommends curl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /app
