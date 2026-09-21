@@ -91,6 +91,33 @@ CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS central_notes (
+  path        TEXT PRIMARY KEY,
+  title       TEXT DEFAULT '',
+  tipo        TEXT DEFAULT '',
+  area        TEXT DEFAULT '',
+  produto     TEXT DEFAULT '',
+  projeto     TEXT DEFAULT '',
+  status      TEXT DEFAULT 'ativo',
+  updated_at  TEXT DEFAULT '',
+  mtime       TEXT DEFAULT '',
+  hash        TEXT DEFAULT '',
+  links       TEXT DEFAULT '[]',
+  ingested_at TEXT DEFAULT '',
+  deleted_at  TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS central_entries (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  note_path TEXT NOT NULL,
+  kind      TEXT NOT NULL,
+  text      TEXT NOT NULL,
+  date      TEXT DEFAULT '',
+  section   TEXT DEFAULT '',
+  item_hash TEXT NOT NULL,
+  UNIQUE (note_path, item_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_central_entries_kind ON central_entries(kind, date);
+CREATE INDEX IF NOT EXISTS idx_central_entries_note ON central_entries(note_path);
 `
 
 /** Colunas adicionadas depois da v3.0 (migrações idempotentes). */

@@ -16,6 +16,9 @@ export const AUTH_TTL_SECONDS = 60 * 60 * 24 * 7
 
 export const AUTH_COOKIE = "bomdia_session"
 
+/** Token do agente local do radar (Bearer); vazio desabilita a ingestao. */
+export const SERVICE_TOKEN = process.env.SERVICE_TOKEN?.trim() ?? ""
+
 export const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
 export const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB ?? 25)

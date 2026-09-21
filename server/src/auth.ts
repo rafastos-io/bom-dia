@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto"
 import type { Context, Next } from "hono"
 import { getCookie } from "hono/cookie"
-import { AUTH_COOKIE, AUTH_SECRET, AUTH_TTL_SECONDS, AUTH_USER } from "./config.js"
+import { AUTH_COOKIE, AUTH_SECRET, AUTH_TTL_SECONDS, AUTH_USER, SERVICE_TOKEN } from "./config.js"
 
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD?.trim() ?? ""
 const AUTH_PASSWORD_SHA256 = process.env.AUTH_PASSWORD_SHA256?.trim().toLowerCase() ?? ""
@@ -53,6 +53,12 @@ export function validSessionToken(token: string | undefined, now = Date.now()): 
 
 export function isAuthenticated(c: Context): boolean {
   return validSessionToken(getCookie(c, AUTH_COOKIE))
+}
+
+/** Aceita `Authorization: Bearer <SERVICE_TOKEN>` (agente local do radar). */
+export function validServiceToken(header: string | undefined): boolean {
+  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : ""
+  return Boolean(SERVICE_TOKEN && token && safeEqual(token, SERVICE_TOKEN))
 }
 
 const PUBLIC_PATHS = new Set(["/health", "/api/health", "/login", "/logout"])

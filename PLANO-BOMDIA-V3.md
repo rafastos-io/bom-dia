@@ -45,6 +45,10 @@ Pós-cutover: Python, tray e UI legada removidos; bomdia.db arquivado (rollback)
 `POST /api/ai/{config,parse,whatsapp}` · `GET/POST /login` · `POST /logout` · `GET /health`.
 Só adições. `/api/open` removido.
 
+Adições do radar (21/09/2026): `POST /api/radar/ingest` (Bearer `SERVICE_TOKEN`, idempotente por
+hash do conteúdo extraído) e `GET /api/radar` (sessão). Tabelas derivadas `central_notes` e
+`central_entries` — cópia somente leitura da CENTRAL, nunca escrita de volta.
+
 ## Schema (Drizzle espelhando o SQLite atual)
 
 `tasks`(id,title,requested_by,send_to,due_date,priority,description,status,created_at,tipo,projeto,recorrencia,feito_em) ·

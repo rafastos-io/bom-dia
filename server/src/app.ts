@@ -21,6 +21,7 @@ import {
   requireAuth,
   sessionCookie,
   validCredentials,
+  validServiceToken,
 } from "./auth.js"
 import type { Database } from "./db/client.js"
 import {
@@ -47,6 +48,7 @@ import {
 } from "./data.js"
 import { buildGaps } from "./rules.js"
 import { aiParse, aiWhatsapp } from "./openai.js"
+import { ingestCentral, parseIngest, radarDigest, type RadarIngest } from "./radar.js"
 import { buildKey, r2Delete, r2Get, r2Put, safeName } from "./r2.js"
 
 async function readJson(c: Context): Promise<Record<string, unknown>> {
@@ -67,6 +69,22 @@ export function createApp(db: Database): Hono {
     c.header("X-Content-Type-Options", "nosniff")
     c.header("X-Frame-Options", "DENY")
     c.header("Referrer-Policy", "same-origin")
+  })
+
+  // ------------------------------------------------------------------ radar ---
+  // Ingestao do agente local (Bearer de servico). Registrada ANTES do guard de
+  // sessao de /api/* porque o agente nao tem cookie; a leitura usa sessao.
+  app.post("/api/radar/ingest", async (c) => {
+    if (!validServiceToken(c.req.header("authorization"))) {
+      return c.json({ error: "token de servico invalido" }, 401)
+    }
+    let payload: RadarIngest
+    try {
+      payload = parseIngest(await readJson(c))
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400)
+    }
+    return c.json(await ingestCentral(db, payload))
   })
 
   app.use("/api/*", requireAuth)
@@ -350,6 +368,9 @@ export function createApp(db: Database): Hono {
       return c.json({ error: (error as Error).message }, 502)
     }
   })
+
+  // ------------------------------------------------------------------- radar ---
+  app.get("/api/radar", async (c) => c.json(await radarDigest(db)))
 
   app.all("/api/*", (c) => c.json({ error: "rota nao encontrada" }, 404))
 

@@ -52,6 +52,7 @@ npm run build:server   # build da API
 | --- | --- |
 | `PORT` | Porta HTTP (default 9463) |
 | `AUTH_USER` / `AUTH_PASSWORD` / `AUTH_SECRET` | Login e assinatura da sessão (cookie HttpOnly) |
+| `SERVICE_TOKEN` | Token do agente local do radar (`Authorization: Bearer`); sem ele a ingestão responde 401 |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Banco em produção |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | IA (a chave de ambiente tem prioridade e nunca é gravada) |
 | `R2_ENDPOINT` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Anexos (sem as 4, o upload some da UI) e backup semanal |

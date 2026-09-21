@@ -86,3 +86,29 @@ export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").default(""),
 })
+
+export const centralNotes = sqliteTable("central_notes", {
+  path: text("path").primaryKey(),
+  title: text("title").default(""),
+  tipo: text("tipo").default(""),
+  area: text("area").default(""),
+  produto: text("produto").default(""),
+  projeto: text("projeto").default(""),
+  status: text("status").default("ativo"),
+  updatedAt: text("updated_at").default(""),
+  mtime: text("mtime").default(""),
+  hash: text("hash").default(""),
+  links: text("links").default("[]"),
+  ingestedAt: text("ingested_at").default(""),
+  deletedAt: text("deleted_at").default(""),
+})
+
+export const centralEntries = sqliteTable("central_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  notePath: text("note_path").notNull(),
+  kind: text("kind").notNull(),
+  text: text("text").notNull(),
+  date: text("date").default(""),
+  section: text("section").default(""),
+  itemHash: text("item_hash").notNull(),
+})
