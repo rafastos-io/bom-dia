@@ -123,13 +123,17 @@ GET /api/radar                  (sessão do app)
 ### R0 — Aprovação e token (sem código)
 - [ ] Rafael confirma as 5 decisões (D1–D5) e cadastra `SERVICE_TOKEN` no Coolify (runtime only).
 
-### R1 — Servidor (uma sessão)
-- [ ] Migração idempotente: `central_notes` + `central_entries` (+ índices por `date` e `kind`).
-- [ ] `POST /api/radar/ingest` com `requireAuthOrService` (Bearer + `timingSafeEqual`), lote,
-      idempotência por hash, remoção de notas em `deleted`.
-- [ ] `GET /api/radar` (sessão) com "progresso por dia" e "no ar" derivado.
-- [ ] Testes: 401 sem token/sessão, 403 token errado, ingest idempotente, nota removida,
-      "no ar" respeitando presença e nota encerrada, ordenação por idade.
+### R1 — Servidor (uma sessão) ✅ concluída (21/09)
+- [x] Migração idempotente: `central_notes` + `central_entries` (+ índices por `date` e `kind`)
+- [x] `POST /api/radar/ingest` com Bearer + `timingSafeEqual`, lote, idempotência por hash do
+      conteúdo extraído, remoção de notas em `deleted`
+- [x] `GET /api/radar` (sessão) com "progresso por dia" (14 dias) e "no ar" derivado
+- [x] Testes: 401 sem token/sessão, token errado 401, ingest idempotente, entradas inválidas
+      descartadas, nota atual substitui entradas, nota removida, nota encerrada fora do "no ar",
+      ordenação por idade, lote grande rejeitado — **10 testes novos, 44/44 no server**
+
+Publicado em `dd670da` (21/09/2026): deploy `finished`, `/health` ok, `POST /api/radar/ingest` e
+`GET /api/radar` respondem 401 sem credencial; a ingestão real depende do `SERVICE_TOKEN` (R0).
 
 ### R2 — Agente local (uma sessão)
 - [ ] `agent/` em Node: `chokidar` + `gray-matter`, debounce (~2 s), hash por arquivo,
