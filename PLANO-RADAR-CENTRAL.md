@@ -135,13 +135,20 @@ GET /api/radar                  (sessão do app)
 Publicado em `dd670da` (21/09/2026): deploy `finished`, `/health` ok, `POST /api/radar/ingest` e
 `GET /api/radar` respondem 401 sem credencial; a ingestão real depende do `SERVICE_TOKEN` (R0).
 
-### R2 — Agente local (uma sessão)
-- [ ] `agent/` em Node: `chokidar` + `gray-matter`, debounce (~2 s), hash por arquivo,
-      estado local (`agent/.state.json`, gitignored) para enviar só deltas.
-- [ ] Parser por tipo de nota com fixtures reais (diário, produto, projeto, decisão).
-- [ ] `backfill` (só metadados de toda a árvore) e `watch` (tempo real) como comandos.
-- [ ] Revarredura periódica (ex.: 15 min) como rede de segurança do watch.
-- [ ] Rodar no Windows como tarefa agendada (logon + reinício automático); `.env.example` próprio.
+### R2 — Agente local (uma sessão) ✅ concluída (21/09)
+- [x] `agent/` em Node: `chokidar` + `gray-matter`, debounce (2 s), hash do conteúdo extraído
+      e estado local (`agent/.state.json`, gitignored) para enviar só deltas
+- [x] Parser por tipo de nota com fixtures (diário, produto, projeto, decisão) — 5 testes
+- [x] `backfill` (reenvio forçado), `once` (deltas) e `watch` (tempo real) como comandos
+- [x] Revarredura periódica (15 min) e `deleted` para notas removidas/renomeadas
+- [x] `run-forever.cmd` + instruções `schtasks` no `agent/README.md`; `.env.example` próprio
+- [ ] Ativar a tarefa agendada no Windows (depende do `SERVICE_TOKEN` no Coolify — Rafael)
+
+Publicado em `7844f44` (21/09/2026). Verificação real: `summary` no vault → **287 arquivos,
+1.472 entradas** (1.123 progresso, 187 aberto, 96 próxima ação, 66 decisão); ponta a ponta contra
+um servidor local (banco de teste) → `once` enviou 287 notas, a segunda passada mandou **0**
+(idempotência) e o `GET /api/radar` devolveu **12 dias / 614 itens** de progresso e **151 itens
+no ar** (mais velho com 19 dias). Nota: nada foi enviado à produção ainda.
 
 ### R3 — Front (uma sessão)
 - [ ] Rota `/radar` + item no rail (ícone Lucide próprio; fora de `AREAS`/contagens).
@@ -149,6 +156,8 @@ Publicado em `dd670da` (21/09/2026): deploy `finished`, `/health` ok, `POST /api
       `Panel`/`ScreenHeader`/`EmptyState` e os tokens do DS.
 - [ ] Estados: carregando, erro, vazio ("nada no ar — bom sinal").
 - [ ] (Fim do MVP) card-resumo na Hoje se o uso pedir.
+- [ ] Volume real medido no backfill (21/09): 614 itens de progresso em 12 dias e 151 no ar —
+      agrupar por dia com recolhimento e limitar a lista inicial.
 
 ### R4 — Verificação e publicação
 - [ ] `typecheck`/`lint`/`test` verdes; auditoria DS 0/0 nos 2 temas (390–1440 px); capturas.
