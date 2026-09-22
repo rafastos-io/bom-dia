@@ -33,19 +33,34 @@ npm run watch               # observa em tempo real
 
 ## Rodar como tarefa agendada (Windows)
 
-Opção A — **bandeja** (usada desde 21/09/2026): atalho na pasta Startup aponta para
-`tray\abrir-bandeja.vbs`, que abre um ícone na área de notificação sem console nenhum.
-No menu do ícone (clique com o botão direito):
+Opção A — **bandeja** (usada desde 21/09/2026; em executável desde 22/09/2026):
+`tray\BomDiaRadarTray.exe` é um único `.exe` .NET WinForms — **sem PowerShell, sem VBS e
+sem `cmd` oculto** — que põe o ícone na área de notificação e cuida do agente (inicia o
+`src\index.js watch` direto, reinicia em 10 s se cair e escreve no `radar-agent.log`).
+
+Compile uma vez (ou quando `Tray.cs` mudar) e instale os atalhos (Startup + Área de Trabalho):
+
+```bat
+cd agent\tray
+build.cmd
+BomDiaRadarTray.exe --instalar
+```
+
+`--desinstalar` remove os atalhos. No menu do ícone (clique com o botão direito):
 
 - **Agente: ativo / parado** — status ao vivo (checa a cada 5 s);
 - **Abrir o Radar** (duplo clique no ícone também);
-- **Rodar agora** — dispara um `npm run once` e escreve no log;
-- **Iniciar/Parar agente** — liga e desliga o wrapper `run-forever.cmd`;
+- **Rodar agora** — dispara um `once` e escreve no log;
+- **Iniciar/Parar agente** — liga e desliga o `src\index.js watch`;
 - **Abrir log** / **Abrir pasta do agente**;
 - **Sair (para o agente)** — fecha a bandeja e para o agente.
 
 Se o ícone não aparecer na barra, procure em "outros ícones do sistema" (o `^`) e fixe.
-Há um atalho **BomDia Radar** também na Área de Trabalho para reabrir depois de sair.
+
+Por que não PowerShell/VBS: o Kaspersky Premium marcava a cadeia antiga
+(`abrir-bandeja.vbs` → PowerShell oculto → `bandeja.ps1`) como `PDM:Trojan.Win32.Generic`
+— falso positivo típico de script host escondido. Os scripts antigos ficaram só no
+histórico do git (commit `2609695`).
 
 Opção B — sem bandeja: rode `run-forever.cmd` (com terminal elevado, se quiser a tarefa
 agendada via `schtasks`, que exige admin):
