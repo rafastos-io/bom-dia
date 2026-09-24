@@ -242,7 +242,9 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   ponta a ponta local contra o vault real (296 notas / 1.685 entradas) → **27 projetos**,
   **97 tarefas abertas**, 101 concluídas (83 decisões com projeto + 18 `Concluído` do diário sem
   projeto), **29 subtarefas** fundidas, zero títulos duplicados; segunda passada forçada e `reconcile`
-  sem novidades (idempotente). Pendente: publicar pela `main` e rodar o backfill real em produção.
+  sem novidades (idempotente). **Publicada em 24/09/2026** (`c0e41ee`, deploy `finished`; rota
+  `reconcile` negando sem token, container sem erro) e o backfill real rodou em produção
+  (**27 projetos, 197 tarefas, 31 subtarefas**); `once` e `reconcile` seguintes sem novidades.
 - **F2 — app.** Selo "CENTRAL"/"fechada pela CENTRAL", filtro por fonte, kind `nota` + `obsidian://`,
   fila de divergências (concluída local × aberta na CENTRAL) e matching com IA.
 - **F3 — relatórios.** Fluxo por origem/área/projeto (revisão da semana) e sinais de atividade.
