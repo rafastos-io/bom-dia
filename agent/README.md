@@ -3,6 +3,8 @@
 Observa `C:\Users\rafaa\CENTRAL\Rafael`, extrai o que andou (progresso) e o que ficou
 aberto ("no ar") das notas e envia apenas deltas para o Bom Dia
 (`POST /api/radar/ingest`, autenticado por `SERVICE_TOKEN`). **Nada é escrito no vault.**
+No servidor, o mesmo conteúdo alimenta o **espelho de demandas** (projetos e tarefas do
+Bom Dia) — o `backfill` dispara o reconcile no fim para materializá-lo.
 
 ## Como funciona
 
@@ -10,13 +12,15 @@ aberto ("no ar") das notas e envia apenas deltas para o Bom Dia
 - Por tipo de nota:
   - **diário:** `Foco`/`Registro` = progresso; `Encerramento` classifica pelo rótulo
     (`Concluído` = progresso, `Aberto` = aberto, `Próxima ação` = próxima ação).
-  - **produto/projeto:** `Última sessão` = progresso (data do heading ou do bold);
-    `Próximas ações` = próxima ação; `**Pendências registradas:**` = aberto;
-    `- [ ]` de `Marcos` = aberto.
+  - **produto/projeto:** `Última sessão` = progresso (data do heading ou do bold); na
+    sessão mais recente, `Pendências`/`Próxima ação` = aberto/próxima ação;
+    `Próximas ações` = próxima ação; `Estado atual → Próxima ação` = próxima ação;
+    `**Pendências registradas:**` = aberto (quebradas por `;`); `- [ ]` de `Marcos` = aberto.
   - **decisão:** seção `Decisão` (data do frontmatter).
+- Itens de lista aninhados viram `subtasks` do item pai.
 - Hash do conteúdo extraído evita reenvio; o servidor também deduplica por hash.
 - Watch com debounce de 2 s + revarredura a cada 15 min (rede de segurança).
-- Arquivo excluído/renomeado no vault vira `deleted` no envio.
+- Arquivo excluído/renomeado no vault vira `deleted` no envio (fecha as tarefas espelhadas).
 
 ## Primeira execução
 
@@ -25,9 +29,12 @@ cd agent
 npm install
 copy .env.example .env      # cole o BOMDIA_SERVICE_TOKEN (Coolify, runtime only)
 npm run summary             # confere o que o agente enxerga (nao envia nada)
-npm run backfill            # envia tudo (idempotente)
+npm run backfill            # envia tudo (idempotente) e reconcilia o espelho
 npm run watch               # observa em tempo real
 ```
+
+Sem `npm run` (comando direto): `node src/index.js reconcile` reconstroi o espelho a
+partir do que ja esta no servidor, sem reenviar notas.
 
 `DRY_RUN=1` simula sem enviar (e sem avançar o estado local).
 

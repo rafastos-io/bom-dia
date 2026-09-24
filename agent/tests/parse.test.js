@@ -85,6 +85,50 @@ area: "[[Pessoal/Pessoal]]"
 - [ ] Agente local rodando como tarefa agendada
 `
 
+const PROJETO_ESPELHO = `---
+tipo: projeto
+status: ativo
+atualizado_em: 2026-09-24
+produto: "[[Pessoal/03 - Produtos/Bom Dia]]"
+area: "[[Pessoal/Pessoal]]"
+repositorio: https://github.com/rafastos-io/bom-dia
+caminho_local: "C:\\\\Users\\\\rafaa\\\\VIBECODING\\\\BomDia"
+---
+
+# Bom Dia — Demandas espelhadas da CENTRAL
+
+## Resultado esperado
+
+Espelhar as demandas da CENTRAL no Bom Dia.
+
+**Condição de conclusão:** publicar.
+
+## Estado atual
+
+- **Estado:** desenho aprovado.
+- **Prazo:** sem data.
+- **Próxima ação:** F1 — migração e parser.
+
+## Próximas ações
+
+- Executar a F1 do espelho
+  - migração das tabelas
+  - parser do agente
+- Ligar o backfill
+
+## Última sessão
+
+### 2026-09-21 — R1
+
+- **Mudanças:** servidor publicado.
+
+### 2026-09-24 — desenho aprovado
+
+- **Mudanças:** desenho fechado.
+- **Pendências:** calibrar o limiar de similaridade; revisar o merge
+- **Próxima ação:** começar a F1
+`
+
 const DECISAO = `---
 tipo: decisao
 status: aceita
@@ -115,7 +159,7 @@ test("diario mapeia foco, registro e encerramento por rotulo", () => {
 
   const concluido = note.entries.find((entry) => entry.text.includes("leitura do fim de semana"))
   assert.equal(concluido?.kind, "progresso")
-  assert.equal(concluido?.section, "Encerramento")
+  assert.equal(concluido?.section, "Concluído")
 
   const aberto = note.entries.find((entry) => entry.kind === "aberto")
   assert.equal(aberto?.text, "quatro Instant Forms de 18/09 ainda sem nome no Turso; default 6 h/BRT no Git.")
@@ -144,8 +188,12 @@ test("produto: ultima sessao, proximas acoes, pendencias e marcos", () => {
   assert.ok(proxima?.text.includes("AUTH_SECRET"))
   assert.equal(proxima?.date, "2026-09-21")
 
-  const pendencias = note.entries.find((entry) => entry.kind === "aberto" && entry.section === "Pendências")
-  assert.ok(pendencias?.text.includes("rotacionar a chave Runway"))
+  const pendencias = note.entries
+    .filter((entry) => entry.kind === "aberto" && entry.section === "Pendências")
+    .map((entry) => entry.text)
+  assert.equal(pendencias.length, 2)
+  assert.ok(pendencias.some((value) => value.includes("AUTH_SECRET")))
+  assert.ok(pendencias.some((value) => value.includes("rotacionar a chave Runway")))
 
   const marcos = note.entries.filter((entry) => entry.kind === "aberto" && entry.section === "Marcos")
   assert.deepEqual(
@@ -175,5 +223,51 @@ test("espacos e formatacao extra nao mudam o hash; conteudo muda", () => {
   assert.equal(original.hash, reformatado.hash)
 
   const mudado = parseNote(DIARIO.replace("76", "77"), "diario.md")
+  assert.notEqual(original.hash, mudado.hash)
+})
+
+test("projeto: Estado atual, subtarefas e sessao mais recente", () => {
+  const note = parseNote(PROJETO_ESPELHO, "Pessoal/02 - Projetos/Espelho.md")
+  assert.equal(note.scope, "Espelhar as demandas da CENTRAL no Bom Dia.")
+  assert.equal(note.repositorio, "https://github.com/rafastos-io/bom-dia")
+  assert.equal(note.caminhoLocal, "C:\\Users\\rafaa\\VIBECODING\\BomDia")
+
+  const estado = note.entries.find((entry) => entry.section === "Estado atual")
+  assert.equal(estado?.kind, "proxima_acao")
+  assert.equal(estado?.text, "F1 — migração e parser.")
+  assert.equal(estado?.date, "2026-09-24")
+
+  const proximas = note.entries.find((entry) => entry.section === "Próximas ações")
+  assert.equal(proximas?.kind, "proxima_acao")
+  assert.equal(proximas?.text, "Executar a F1 do espelho")
+  assert.deepEqual(
+    proximas?.subtasks.map((subtask) => subtask.text),
+    ["migração das tabelas", "parser do agente"],
+  )
+
+  const antiga = note.entries.find((entry) => entry.text.includes("servidor publicado"))
+  assert.equal(antiga?.section, "Última sessão")
+  assert.equal(antiga?.kind, "progresso")
+
+  const pendencias = note.entries.find((entry) => entry.section === "Última sessão · Pendências")
+  assert.equal(pendencias?.kind, "aberto")
+  assert.equal(pendencias?.text, "calibrar o limiar de similaridade; revisar o merge")
+  assert.equal(pendencias?.date, "2026-09-24")
+
+  const proxima = note.entries.find((entry) => entry.section === "Última sessão · Próxima ação")
+  assert.equal(proxima?.kind, "proxima_acao")
+  assert.equal(proxima?.text, "começar a F1")
+
+  // A sessao anterior nao alimenta o "no ar": o rotulo dela vira progresso.
+  const antigaMudanca = note.entries.find((entry) => entry.text.includes("servidor publicado"))
+  assert.equal(antigaMudanca?.kind, "progresso")
+})
+
+test("subtarefa muda o hash da nota", () => {
+  const original = parseNote(PROJETO_ESPELHO, "Pessoal/02 - Projetos/Espelho.md")
+  const mudado = parseNote(
+    PROJETO_ESPELHO.replace("  - parser do agente", "  - parser do agente (novo)"),
+    "Pessoal/02 - Projetos/Espelho.md",
+  )
   assert.notEqual(original.hash, mudado.hash)
 })

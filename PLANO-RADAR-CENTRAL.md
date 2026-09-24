@@ -4,7 +4,8 @@
 > Projeto: `CENTRAL\Rafael\Pessoal\02 - Projetos\Bom Dia - Radar de progresso da CENTRAL.md` ·
 > Decisão: `DEC-2026-09-19 - Radar de progresso somente leitura da CENTRAL no Bom Dia`.
 > Desenho fechado em 19/09/2026; este plano foi montado em 21/09/2026 **sem escrever código**.
-> As 5 decisões em aberto estão marcadas com **recomendação** — aguardando o OK de Rafael.
+> As 5 decisões em aberto estão marcadas com **recomendação** — aprovadas em 21/09/2026.
+> **Fase 2 (espelho de demandas) desenhada e aprovada em 24/09/2026** — ver a seção no fim do documento.
 
 ## Objetivo e recorte
 
@@ -14,8 +15,9 @@ O Bom Dia passa a **mostrar** o que a CENTRAL registra, sem nunca escrever nela:
 - **No ar:** itens abertos que não reapareceram como concluídos, os mais velhos no topo.
 - **Digest matinal** (fim do MVP): ontem (progresso + aberto) + hoje (tarefas do Bom Dia + no ar antigo).
 
-Fora do escopo: write-back, mineração de texto antigo (universo A), sincronização bidirecional,
-e — na primeira versão — sinais de atividade (`git log`/mtime) e promoção de item para tarefa.
+Fora do escopo: write-back, mineração de texto antigo (universo A) e sincronização bidirecional.
+A **Fase 2** (abaixo) espelha automaticamente as demandas no Bom Dia; sinais de atividade
+(`git log`/mtime) seguem opcionais.
 
 ## Arquitetura
 
@@ -181,9 +183,72 @@ sem o aviso de `AUTH_SECRET` e sem erro de migração. Nota operacional: o Kaspe
 falso positivo (detecção comportamental PDM) contra o binário do opencode — assinatura digital válida
 da Anomaly Innovations; o caminho ficou fora do escaneamento.
 
-### Fase opcional (depois do MVP)
+## Fase 2 — Espelho de demandas (aprovada em 24/09/2026)
+
+> Substitui a promoção manual ("um clique") pela regra de **espelho automático**: o que está na
+> CENTRAL como pendência vira demanda no Bom Dia, e a atualização da nota atualiza a demanda.
+> Direção única CENTRAL → Bom Dia; **nada escreve no vault**.
+
+### Decisões fechadas com Rafael (24/09/2026)
+
+- **D6 · Espelho automático.** Itens `aberto`/`proxima_acao` de notas ativas de produto/projeto viram
+  tarefas do Bom Dia; mudanças na CENTRAL criam, atualizam, fecham e reabrem as tarefas. Sem clique.
+- **D7 · Projeto por nota.** Cada nota ativa `produto`/`projeto` vira um projeto do Bom Dia (flat),
+  identificado por `central_note` (path da nota). Produto e projeto da empreitada aparecem os dois;
+  empreitada concluída → projeto arquivado.
+- **D8 · Hierarquia.** Fontes de tarefa: "Próximas ações", "Estado atual → Próxima ação",
+  "Marcos `- [ ]`", "Última sessão (só a mais recente) → **Pendências**/**Próxima ação**" e
+  `**Pendências registradas:**`. Um *assembler* por similaridade junta paráfrases: o candidato mais
+  específico vira a tarefa e os parecidos (ex.: o mesmo marco) viram **subtarefas**, não tarefas novas.
+- **D9 · Diário e decisões.** O diário não cria tarefa; `**Concluído:**` fecha a tarefa
+  correspondente ou cria uma tarefa concluída. Notas `decisao` viram tarefas **concluídas** (data do
+  frontmatter; backfill com janela de 60 dias, ajustável).
+- **D10 · Campos.** A CENTRAL manda em título, status e conclusão; o Bom Dia manda em prazo,
+  prioridade, estimativa, subtarefas locais, envolvidos e anotações. Subtarefas vindas da CENTRAL são
+  substituídas; as locais, preservadas.
+- **D11 · Links.** Wikilinks/URLs do item viram links (`nota`/`web`); `repositorio` e `caminho_local`
+  da nota viram links do projeto (grupos "CENTRAL" e "Código"). Requer kind `nota` no app e suporte a
+  `obsidian://` (F2 do front).
+
+### Regras determinísticas (F1)
+
+- Entrada sumiu da nota → fecha a tarefa vinculada (`completed_at` = `atualizado_em` da nota), com
+  selo "fechada pela CENTRAL"; entrada reaparece → reabre.
+- Texto mudou com similaridade ≥ limiar (mesma nota, mesmo kind ou compatível) → mesma tarefa,
+  atualiza título/descrição; sem similaridade → fecha a antiga e cria a nova.
+- Nota encerrada/arquivada/removida → fecha as tarefas vinculadas; status volta a ativo → reabre as
+  que ainda existem.
+- **Reconcile:** a ingestão pula notas inalteradas, então um `POST /api/radar/reconcile` (Bearer)
+  reconstrói o espelho a partir das tabelas derivadas; o `agent backfill` passa a chamar
+  ingest + reconcile.
+
+### Volume medido (24/09/2026, escopo ativo)
+
+- 26 notas ativas (16 produtos, 10 projetos) → 26 projetos; 20 com `caminho_local`, 17 com `repositorio`.
+- 142 candidatos: 40 "Próximas ações", 37 Marcos, 10 "Estado atual", 24 "Última sessão", 33 do diário
+  (fora da criação). ~110 tarefas abertas no backfill + decisões recentes concluídas.
+- Itens com wikilink: 6; com URL: 3; texto médio 96 caracteres.
+- Subtarefas aninhadas praticamente não existem (4 casos em 307 arquivos) — a convenção entra nos
+  templates da CENTRAL.
+
+### Fases
+
+- **F1 — dados (servidor + agente).** ✅ implementada em 24/09/2026 (working tree, **não publicada**):
+  migração `central_task_links` + `projects.central_note`; payload com `scope`, `repositorio`,
+  `caminhoLocal` e `subtasks`; parser do agente ("Estado atual", sessão mais recente, sub-bullets,
+  hash); diff na ingestão; assembler por similaridade; espelho no ingest + `POST /api/radar/reconcile`;
+  agente com `reconcile` e ordem produto/projeto → diário → decisão.
+  Verificações: `typecheck`/`lint`/`build` verdes; **52/52 testes** do server e **8/8** do agente;
+  ponta a ponta local contra o vault real (296 notas / 1.685 entradas) → **27 projetos**,
+  **97 tarefas abertas**, 101 concluídas (83 decisões com projeto + 18 `Concluído` do diário sem
+  projeto), **29 subtarefas** fundidas, zero títulos duplicados; segunda passada forçada e `reconcile`
+  sem novidades (idempotente). Pendente: publicar pela `main` e rodar o backfill real em produção.
+- **F2 — app.** Selo "CENTRAL"/"fechada pela CENTRAL", filtro por fonte, kind `nota` + `obsidian://`,
+  fila de divergências (concluída local × aberta na CENTRAL) e matching com IA.
+- **F3 — relatórios.** Fluxo por origem/área/projeto (revisão da semana) e sinais de atividade.
+
+### Fase opcional (depois)
 - [ ] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`).
-- [ ] Promoção de item "no ar" para tarefa/ideia com um clique (revisão do Poohzera).
 
 ## Riscos e mitigações
 

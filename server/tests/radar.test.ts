@@ -104,10 +104,22 @@ describe("radar: ingestao", () => {
     const payload = note({ path: "Testes/idempotente.md", title: "Idempotente" })
     const first = await ingest({ notes: [payload] })
     expect(first.status).toBe(200)
-    expect(await first.json()).toEqual({ notes: 1, entries: 2, removed: 0, skipped: 0 })
+    expect(await first.json()).toMatchObject({
+      notes: 1,
+      entries: 2,
+      removed: 0,
+      skipped: 0,
+      mirror: { projects: 1, created: 1, updated: 0, closed: 0, reopened: 0, subtasks: 0 },
+    })
 
     const second = await ingest({ notes: [payload] })
-    expect(await second.json()).toEqual({ notes: 0, entries: 0, removed: 0, skipped: 1 })
+    expect(await second.json()).toMatchObject({
+      notes: 0,
+      entries: 0,
+      removed: 0,
+      skipped: 1,
+      mirror: { created: 0, updated: 0, closed: 0 },
+    })
   })
 
   it("a nota atual substitui as entradas anteriores", async () => {
@@ -119,7 +131,7 @@ describe("radar: ingestao", () => {
       entries: [{ kind: "progresso", text: "Agora so progresso", date: isoDaysAgo(0) }],
     })
     const res = await ingest({ notes: [onlyProgress] })
-    expect(await res.json()).toEqual({ notes: 1, entries: 1, removed: 0, skipped: 0 })
+    expect(await res.json()).toMatchObject({ notes: 1, entries: 1, removed: 0, skipped: 0 })
 
     const cookie = await login()
     const data = await digest(cookie)
@@ -140,14 +152,14 @@ describe("radar: ingestao", () => {
         }),
       ],
     })
-    expect(await res.json()).toEqual({ notes: 1, entries: 1, removed: 0, skipped: 0 })
+    expect(await res.json()).toMatchObject({ notes: 1, entries: 1, removed: 0, skipped: 0 })
   })
 
   it("deleted remove a nota e as entradas", async () => {
     const path = "Testes/removida.md"
     await ingest({ notes: [note({ path, title: "Removida" })] })
     const res = await ingest({ notes: [], deleted: [path] })
-    expect(await res.json()).toEqual({ notes: 0, entries: 0, removed: 1, skipped: 0 })
+    expect(await res.json()).toMatchObject({ notes: 0, entries: 0, removed: 1, skipped: 0 })
 
     const cookie = await login()
     const data = await digest(cookie)
@@ -215,5 +227,336 @@ describe("radar: leitura", () => {
     expect(old).toBeGreaterThanOrEqual(0)
     expect(recent).toBeGreaterThanOrEqual(0)
     expect(old).toBeLessThan(recent)
+  })
+})
+
+type TaskDict = {
+  id: number
+  title: string
+  status: string
+  projeto: string
+  description: string
+  completed_at?: string
+  links: Array<{ kind: string; target: string }>
+  subtasks: Array<{ title: string; done: number }>
+}
+
+type ProjectDict = {
+  id: number
+  name: string
+  scope: string
+  status: string
+  central_note?: string
+  links: Array<{ kind: string; target: string; grupo: string }>
+  task_ativas: number
+}
+
+async function listTasks(cookie: string): Promise<TaskDict[]> {
+  const res = await app.request("/api/tasks", { headers: { Cookie: cookie } })
+  expect(res.status).toBe(200)
+  return (await res.json()) as TaskDict[]
+}
+
+async function listProjects(cookie: string): Promise<ProjectDict[]> {
+  const res = await app.request("/api/projects", { headers: { Cookie: cookie } })
+  expect(res.status).toBe(200)
+  return (await res.json()) as ProjectDict[]
+}
+
+describe("radar: espelho de demandas", () => {
+  it("cria projeto e tarefa com subtarefas e links", async () => {
+    const path = "Testes/espelho/produto.md"
+    const res = await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Espelho",
+          scope: "Espelhar as demandas da CENTRAL.",
+          repositorio: "https://github.com/rafastos-io/exemplo",
+          caminhoLocal: "C:\\projetos\\exemplo",
+          entries: [
+            {
+              kind: "proxima_acao",
+              text: "Executar a F1 do espelho (ver https://exemplo.com/spec)",
+              date: isoDaysAgo(0),
+              section: "Próximas ações",
+              subtasks: [
+                { text: "migração das tabelas", done: false },
+                { text: "parser do agente", done: true },
+              ],
+            },
+          ],
+        }),
+      ],
+    })
+    expect(res.status).toBe(200)
+    const cookie = await login()
+
+    const task = (await listTasks(cookie)).find((item) =>
+      item.title.startsWith("Executar a F1 do espelho"),
+    )
+    expect(task?.projeto).toBe("Produto Espelho")
+    expect(task?.status).toBe("aberta")
+    expect(task?.description).toContain(path)
+    expect(task?.links.some((link) => link.target === "https://exemplo.com/spec")).toBe(true)
+    expect(task?.subtasks.map((subtask) => subtask.title)).toEqual([
+      "migração das tabelas",
+      "parser do agente",
+    ])
+    expect(task?.subtasks[1]?.done).toBe(1)
+
+    const project = (await listProjects(cookie)).find((item) => item.name === "Produto Espelho")
+    expect(project?.central_note).toBe(path)
+    expect(project?.scope).toBe("Espelhar as demandas da CENTRAL.")
+    expect(project?.links.some((link) => link.target === "https://github.com/rafastos-io/exemplo")).toBe(true)
+    expect(project?.links.some((link) => link.target === "C:\\projetos\\exemplo")).toBe(true)
+  })
+
+  it("limpa wikilinks no titulo da tarefa espelhada", async () => {
+    await ingest({
+      notes: [
+        note({
+          path: "Testes/espelho/titulo.md",
+          title: "Produto Título",
+          entries: [
+            {
+              kind: "aberto",
+              text: "Fechar o funil ([[Freelancers/03 - Produtos/Finance Equity|Finance Equity]] · [[Pessoal/05 - Decisões/DEC-2026-09-19 - Radar de progresso somente leitura da CENTRAL no Bom Dia|decisão]])",
+              date: isoDaysAgo(1),
+              section: "Pendências",
+              subtasks: [],
+            },
+          ],
+        }),
+      ],
+    })
+    const cookie = await login()
+    const task = (await listTasks(cookie)).find((item) => item.projeto === "Produto Título")
+    expect(task?.title).toBe("Fechar o funil (Finance Equity · decisão)")
+  })
+
+  it("fecha a tarefa quando o item sai da nota e reabre quando volta", async () => {
+    const path = "Testes/espelho/volta.md"
+    const base = note({
+      path,
+      title: "Produto Volta",
+      entries: [
+        { kind: "aberto", text: "Item que vai e volta", date: isoDaysAgo(3), section: "Pendências", subtasks: [] },
+      ],
+    })
+    await ingest({ notes: [base] })
+    const cookie = await login()
+    const before = (await listTasks(cookie)).find((item) => item.title === "Item que vai e volta")
+    expect(before?.status).toBe("aberta")
+
+    await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Volta",
+          entries: [
+            { kind: "progresso", text: "Item resolvido", date: isoDaysAgo(0), section: "Registro", subtasks: [] },
+          ],
+        }),
+      ],
+    })
+    const closed = (await listTasks(cookie)).find((item) => item.title === "Item que vai e volta")
+    expect(closed?.status).toBe("concluida")
+    expect(closed?.completed_at).toBeTruthy()
+
+    await ingest({ notes: [base] })
+    const reopened = (await listTasks(cookie)).find((item) => item.title === "Item que vai e volta")
+    expect(reopened?.status).toBe("aberta")
+  })
+
+  it("mantem a tarefa quando o texto muda com similaridade", async () => {
+    const path = "Testes/espelho/muda.md"
+    await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Muda",
+          entries: [
+            { kind: "aberto", text: "Mudar as cores dos botões", date: isoDaysAgo(2), section: "Pendências", subtasks: [] },
+          ],
+        }),
+      ],
+    })
+    const cookie = await login()
+    const first = (await listTasks(cookie)).find((item) => item.title === "Mudar as cores dos botões")
+    expect(first).toBeDefined()
+
+    const res = await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Muda",
+          entries: [
+            {
+              kind: "aberto",
+              text: "Mudar as cores dos botões para azul",
+              date: isoDaysAgo(1),
+              section: "Pendências",
+              subtasks: [],
+            },
+          ],
+        }),
+      ],
+    })
+    expect(await res.json()).toMatchObject({ mirror: { created: 0, updated: 1, closed: 0 } })
+
+    const tasks = await listTasks(cookie)
+    const same = tasks.find((item) => item.id === first?.id)
+    expect(same?.title).toBe("Mudar as cores dos botões para azul")
+    expect(tasks.filter((item) => item.projeto === "Produto Muda")).toHaveLength(1)
+  })
+
+  it("marco parecido com a proxima acao vira subtarefa", async () => {
+    const path = "Testes/espelho/merge.md"
+    await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Merge",
+          entries: [
+            {
+              kind: "proxima_acao",
+              text: "Usar o radar por 2 a 3 dias e ajustar o gosto da tela",
+              date: isoDaysAgo(1),
+              section: "Próximas ações",
+              subtasks: [],
+            },
+            {
+              kind: "aberto",
+              text: "Usar por 2 a 3 dias e ajustar o gosto da tela",
+              date: isoDaysAgo(1),
+              section: "Marcos",
+              subtasks: [],
+            },
+          ],
+        }),
+      ],
+    })
+    const cookie = await login()
+    const tasks = (await listTasks(cookie)).filter((item) => item.projeto === "Produto Merge")
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0]?.title).toContain("Usar o radar")
+    expect(tasks[0]?.subtasks.some((subtask) => subtask.title.includes("Usar por 2 a 3 dias"))).toBe(true)
+  })
+
+  it("Concluido do diario fecha a tarefa parecida", async () => {
+    const path = "Testes/espelho/conclui.md"
+    await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Conclui",
+          entries: [
+            {
+              kind: "proxima_acao",
+              text: "Pausar o Vercel pontosgrupourban",
+              date: isoDaysAgo(2),
+              section: "Próximas ações",
+              subtasks: [],
+            },
+          ],
+        }),
+      ],
+    })
+    const cookie = await login()
+    const before = (await listTasks(cookie)).find((item) => item.title === "Pausar o Vercel pontosgrupourban")
+    expect(before?.status).toBe("aberta")
+
+    const res = await ingest({
+      notes: [
+        {
+          ...note({ path: "00 - Central/07 - Diário/2026-09-24.md", title: "2026-09-24", entries: [] }),
+          tipo: "diario",
+          status: "ativo",
+          entries: [
+            {
+              kind: "progresso",
+              text: "Pausar o Vercel pontosgrupourban e acompanhar os crons",
+              date: isoDaysAgo(0),
+              section: "Concluído",
+              subtasks: [],
+            },
+          ],
+        },
+      ],
+    })
+    expect(await res.json()).toMatchObject({ mirror: { closed: 1 } })
+    const after = (await listTasks(cookie)).find((item) => item.id === before?.id)
+    expect(after?.status).toBe("concluida")
+  })
+
+  it("decisao vira tarefa concluida no projeto do produto", async () => {
+    await ingest({
+      notes: [
+        note({
+          path: "Testes/espelho/decisao-produto.md",
+          title: "Produto Decisão",
+          entries: [
+            { kind: "progresso", text: "Base criada", date: isoDaysAgo(4), section: "Registro", subtasks: [] },
+          ],
+        }),
+      ],
+    })
+    const res = await ingest({
+      notes: [
+        {
+          ...note({ path: "Pessoal/05 - Decisões/DEC-2026-09-24 - Teste.md", title: "DEC-2026-09-24 - Teste", entries: [] }),
+          tipo: "decisao",
+          status: "aceita",
+          produto: "Produto Decisão",
+          entries: [
+            {
+              kind: "decisao",
+              text: "Espelhar as demandas da CENTRAL",
+              date: isoDaysAgo(0),
+              section: "Decisão",
+              subtasks: [],
+            },
+          ],
+        },
+      ],
+    })
+    expect(await res.json()).toMatchObject({ mirror: { created: 1 } })
+    const cookie = await login()
+    const task = (await listTasks(cookie)).find((item) => item.title === "Espelhar as demandas da CENTRAL")
+    expect(task?.status).toBe("concluida")
+    expect(task?.projeto).toBe("Produto Decisão")
+    expect(task?.completed_at).toBe(isoDaysAgo(0))
+  })
+
+  it("reconcile reconstroi o espelho e exige token", async () => {
+    const path = "Testes/espelho/reconcile.md"
+    await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Reconcile",
+          entries: [
+            { kind: "aberto", text: "Recriar esta demanda", date: isoDaysAgo(5), section: "Pendências", subtasks: [] },
+          ],
+        }),
+      ],
+    })
+    expect((await app.request("/api/radar/reconcile", { method: "POST" })).status).toBe(401)
+
+    await client.execute("DELETE FROM central_task_links")
+    await client.execute("DELETE FROM subtasks")
+    await client.execute("DELETE FROM links")
+    await client.execute("DELETE FROM tasks")
+
+    const res = await app.request("/api/radar/reconcile", {
+      method: "POST",
+      headers: { Authorization: TOKEN },
+    })
+    expect(res.status).toBe(200)
+    const cookie = await login()
+    const task = (await listTasks(cookie)).find((item) => item.title === "Recriar esta demanda")
+    expect(task?.status).toBe("aberta")
+    expect(task?.projeto).toBe("Produto Reconcile")
   })
 })

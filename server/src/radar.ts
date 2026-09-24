@@ -8,50 +8,40 @@
 import { createHash } from "node:crypto"
 import { sql } from "drizzle-orm"
 import type { Database } from "./db/client.js"
+import {
+  RADAR_KINDS,
+  isClosedNoteStatus,
+  itemHash,
+  type RadarEntryInput,
+  type RadarIngest,
+  type RadarKind,
+  type RadarNoteInput,
+  type RadarSubtaskInput,
+} from "./radar-common.js"
+import {
+  closeMirrorForPaths,
+  emptyMirrorReport,
+  mergeMirrorReport,
+  mirrorNote,
+  reconcileAll,
+  type MirrorReport,
+} from "./radar-mirror.js"
 
-export const RADAR_KINDS = ["progresso", "aberto", "proxima_acao", "decisao"] as const
-export type RadarKind = (typeof RADAR_KINDS)[number]
+export type {
+  RadarEntryInput,
+  RadarIngest,
+  RadarKind,
+  RadarNoteInput,
+  RadarSubtaskInput,
+} from "./radar-common.js"
 
 const KIND_SET = new Set<string>(RADAR_KINDS)
 const MAX_NOTES_PER_BATCH = 200
 const MAX_ENTRIES_PER_NOTE = 500
 const MAX_TEXT = 2000
+const MAX_SUBTASKS_PER_ENTRY = 50
+const MAX_SUBTASK_TEXT = 500
 const PROGRESS_DAYS = 14
-
-const CLOSED_STATUS = new Set([
-  "concluido",
-  "concluida",
-  "arquivado",
-  "arquivada",
-  "encerrado",
-  "encerrada",
-  "inativo",
-  "inativa",
-])
-
-export type RadarEntryInput = {
-  kind: RadarKind
-  text: string
-  date: string
-  section: string
-}
-
-export type RadarNoteInput = {
-  path: string
-  title: string
-  tipo: string
-  area: string
-  produto: string
-  projeto: string
-  status: string
-  updatedAt: string
-  mtime: string
-  hash: string
-  links: string[]
-  entries: RadarEntryInput[]
-}
-
-export type RadarIngest = { notes: RadarNoteInput[]; deleted: string[] }
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
@@ -88,11 +78,20 @@ export function parseIngest(raw: unknown): RadarIngest {
       const kind = asString(entry.kind)
       const text = asString(entry.text).slice(0, MAX_TEXT)
       if (!KIND_SET.has(kind) || !text) continue
+      const rawSubtasks = Array.isArray(entry.subtasks) ? entry.subtasks : []
+      const subtasks: RadarSubtaskInput[] = []
+      for (const rawSubtask of rawSubtasks.slice(0, MAX_SUBTASKS_PER_ENTRY)) {
+        const subtask = (rawSubtask ?? {}) as Record<string, unknown>
+        const subtaskText = asString(subtask.text).slice(0, MAX_SUBTASK_TEXT)
+        if (!subtaskText) continue
+        subtasks.push({ text: subtaskText, done: Boolean(subtask.done) })
+      }
       entries.push({
         kind: kind as RadarKind,
         text,
         date: asDate(entry.date),
         section: asString(entry.section).slice(0, 120),
+        subtasks,
       })
     }
     notes.push({
@@ -110,6 +109,9 @@ export function parseIngest(raw: unknown): RadarIngest {
         .map(asString)
         .filter(Boolean)
         .slice(0, 100),
+      scope: asString(note.scope).slice(0, 2000),
+      repositorio: asString(note.repositorio).slice(0, 500),
+      caminhoLocal: asString(note.caminhoLocal).slice(0, 500),
       entries,
     })
   }
@@ -118,11 +120,6 @@ export function parseIngest(raw: unknown): RadarIngest {
     .filter(Boolean)
     .slice(0, MAX_NOTES_PER_BATCH)
   return { notes, deleted }
-}
-
-function itemHash(notePath: string, kind: string, text: string): string {
-  const normalized = text.replace(/\s+/g, " ").trim()
-  return createHash("sha256").update(`${notePath}\u0000${kind}\u0000${normalized}`).digest("hex")
 }
 
 /** Hash do conteudo extraido (o que importa para o radar), nao do arquivo cru. */
@@ -135,42 +132,87 @@ function noteHash(note: RadarNoteInput): string {
     projeto: note.projeto,
     status: note.status,
     updatedAt: note.updatedAt,
-    entries: note.entries.map((entry) => [entry.kind, entry.date, entry.section, entry.text]),
+    scope: note.scope,
+    repositorio: note.repositorio,
+    caminhoLocal: note.caminhoLocal,
+    entries: note.entries.map((entry) => [
+      entry.kind,
+      entry.date,
+      entry.section,
+      entry.text,
+      entry.subtasks.map((subtask) => [subtask.text, subtask.done]),
+    ]),
   })
   return `sha256:${createHash("sha256").update(payload).digest("hex")}`
 }
 
-export type IngestReport = { notes: number; entries: number; removed: number; skipped: number }
+export type IngestReport = {
+  notes: number
+  entries: number
+  removed: number
+  skipped: number
+  mirror: MirrorReport
+}
+
+/** Produto/projeto antes de diario/decisao: o espelho fecha e referencia o que ja existe. */
+function mirrorOrder(tipo: string): number {
+  if (tipo === "produto" || tipo === "projeto") return 0
+  if (tipo === "diario") return 1
+  return 2
+}
+
+type PreviousEntry = { kind: string; text: string; section: string; itemHash: string }
 
 export async function ingestCentral(db: Database, payload: RadarIngest): Promise<IngestReport> {
-  const now = new Date().toISOString()
-  const today = now.slice(0, 10)
+  const now = new Date()
+  const nowText = now.toISOString().slice(0, 19)
+  const today = nowText.slice(0, 10)
   let changed = 0
   let entriesCount = 0
   let skipped = 0
+  const mirror = emptyMirrorReport()
 
   // Um SELECT para o lote inteiro evita N+1 contra o Turso remoto.
   const known = new Map<string, string>()
+  const previous = new Map<string, PreviousEntry[]>()
   if (payload.notes.length) {
     const paths = payload.notes.map((note) => sql`${note.path}`)
     const rows = await db.all<{ path: string; hash: string | null }>(
       sql`SELECT path, hash FROM central_notes WHERE path IN (${sql.join(paths, sql`, `)})`,
     )
     for (const row of rows) known.set(row.path, row.hash ?? "")
+    const entryRows = await db.all<PreviousEntry & { note_path: string }>(
+      sql`SELECT note_path, kind, text, section, item_hash AS itemHash FROM central_entries
+          WHERE note_path IN (${sql.join(paths, sql`, `)})`,
+    )
+    for (const row of entryRows) {
+      const list = previous.get(row.note_path) ?? []
+      list.push({ kind: row.kind, text: row.text, section: row.section, itemHash: row.itemHash })
+      previous.set(row.note_path, list)
+    }
   }
 
-  for (const note of payload.notes) {
+  // Diario/decisao depois: o fechamento e a atribuicao de projeto dependem do espelho dos produtos.
+  const notes = [...payload.notes].sort((a, b) => mirrorOrder(a.tipo) - mirrorOrder(b.tipo))
+
+  for (const note of notes) {
     const hash = noteHash(note)
     if (known.get(note.path) === hash) {
       skipped += 1
       continue
     }
+    const old = previous.get(note.path) ?? []
+    const fresh = new Set(note.entries.map((entry) => itemHash(note.path, entry.kind, entry.text)))
+    const removed = old.filter((entry) => !fresh.has(entry.itemHash))
+
     await db.run(sql`
       INSERT INTO central_notes
-        (path, title, tipo, area, produto, projeto, status, updated_at, mtime, hash, links, ingested_at, deleted_at)
+        (path, title, tipo, area, produto, projeto, status, updated_at, mtime, hash, links,
+         scope, repositorio, caminho_local, ingested_at, deleted_at)
       VALUES
         (${note.path}, ${note.title}, ${note.tipo}, ${note.area}, ${note.produto}, ${note.projeto},
-         ${note.status}, ${note.updatedAt}, ${note.mtime}, ${hash}, ${JSON.stringify(note.links)}, ${now}, '')
+         ${note.status}, ${note.updatedAt}, ${note.mtime}, ${hash}, ${JSON.stringify(note.links)},
+         ${note.scope}, ${note.repositorio}, ${note.caminhoLocal}, ${nowText}, '')
       ON CONFLICT(path) DO UPDATE SET
         title = excluded.title,
         tipo = excluded.tipo,
@@ -182,6 +224,9 @@ export async function ingestCentral(db: Database, payload: RadarIngest): Promise
         mtime = excluded.mtime,
         hash = excluded.hash,
         links = excluded.links,
+        scope = excluded.scope,
+        repositorio = excluded.repositorio,
+        caminho_local = excluded.caminho_local,
         ingested_at = excluded.ingested_at,
         deleted_at = ''
     `)
@@ -191,14 +236,15 @@ export async function ingestCentral(db: Database, payload: RadarIngest): Promise
       const values = note.entries.map((entry) => {
         const date = entry.date || note.updatedAt || today
         const hash = itemHash(note.path, entry.kind, entry.text)
-        return sql`(${note.path}, ${entry.kind}, ${entry.text}, ${date}, ${entry.section}, ${hash})`
+        return sql`(${note.path}, ${entry.kind}, ${entry.text}, ${date}, ${entry.section}, ${hash}, ${JSON.stringify(entry.subtasks)})`
       })
       await db.run(sql`
-        INSERT OR REPLACE INTO central_entries (note_path, kind, text, date, section, item_hash)
+        INSERT OR REPLACE INTO central_entries (note_path, kind, text, date, section, item_hash, subtasks)
         VALUES ${sql.join(values, sql`, `)}
       `)
       entriesCount += note.entries.length
     }
+    mergeMirrorReport(mirror, await mirrorNote(db, note, removed, now))
     changed += 1
   }
 
@@ -210,10 +256,16 @@ export async function ingestCentral(db: Database, payload: RadarIngest): Promise
     )
     await db.run(sql`DELETE FROM central_entries WHERE note_path IN (${list})`)
     await db.run(sql`DELETE FROM central_notes WHERE path IN (${list})`)
+    mergeMirrorReport(mirror, await closeMirrorForPaths(db, payload.deleted, now))
     removed = payload.deleted.length
   }
 
-  return { notes: changed, entries: entriesCount, removed, skipped }
+  return { notes: changed, entries: entriesCount, removed, skipped, mirror }
+}
+
+/** Reconstroi o espelho a partir das tabelas derivadas (usado no deploy/backfill). */
+export async function reconcileMirror(db: Database): Promise<MirrorReport> {
+  return reconcileAll(db)
 }
 
 export type RadarItem = {
@@ -241,14 +293,6 @@ type EntryRow = {
   text: string
   section: string | null
   date: string | null
-}
-
-function statusKey(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
 }
 
 function daysSince(dateIso: string, now: Date): number {
@@ -304,7 +348,7 @@ export async function radarDigest(db: Database, now = new Date()): Promise<Radar
   }
 
   const noAr = openRows
-    .filter((row) => !CLOSED_STATUS.has(statusKey(row.note_status ?? "")))
+    .filter((row) => !isClosedNoteStatus(row.note_status ?? ""))
     .map((row) => ({ ...toItem(row), ageDays: daysSince(row.date ?? "", now) }))
 
   const updated = await db.all<{ at: string | null }>(

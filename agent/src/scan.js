@@ -48,28 +48,47 @@ function chunk(items, size) {
   return out
 }
 
+/**
+ * Ordem de envio: produto/projeto antes de diario/decisao. O espelho no
+ * servidor fecha tarefas a partir do diario e atribui decisoes ao projeto,
+ * entao o que e referencia precisa chegar primeiro (inclusive entre lotes).
+ */
+export function mirrorOrder(note) {
+  if (note.tipo === "produto" || note.tipo === "projeto") return 0
+  if (note.tipo === "diario") return 1
+  return 2
+}
+
 async function sendPayload(config, state, notes, deleted, { send, log }) {
   // Em dry-run nada e enviado e o estado local NAO avanca (o primeiro sync real
   // ainda precisa mandar tudo).
   const remember = !config.dryRun
+  const ordered = [...notes].sort((a, b) => mirrorOrder(a) - mirrorOrder(b))
   let sent = 0
   let entries = 0
   let skipped = 0
-  for (const batch of chunk(notes, config.batchSize)) {
+  const mirror = { projects: 0, created: 0, updated: 0, closed: 0, reopened: 0, subtasks: 0 }
+  const addMirror = (part) => {
+    if (!part) return
+    for (const key of Object.keys(mirror)) mirror[key] += Number(part[key] ?? 0)
+  }
+  for (const batch of chunk(ordered, config.batchSize)) {
     const result = await send(config, { notes: batch, deleted: [] })
     sent += batch.length
     entries += batch.reduce((total, note) => total + note.entries.length, 0)
     skipped += Number(result?.skipped ?? 0)
+    addMirror(result?.mirror)
     if (remember) for (const note of batch) state.notes[note.path] = note.hash
   }
   let removed = 0
   for (const batch of chunk(deleted, config.batchSize)) {
-    await send(config, { notes: [], deleted: batch })
+    const result = await send(config, { notes: [], deleted: batch })
+    addMirror(result?.mirror)
     removed += batch.length
     if (remember) for (const path of batch) delete state.notes[path]
   }
   if (skipped) log.log(`[radar] ${skipped} notas ja estavam iguais no servidor`)
-  return { sent, entries, skipped, deleted: removed }
+  return { sent, entries, skipped, deleted: removed, mirror }
 }
 
 /** Varredura completa: envia o que mudou e remove o que sumiu do vault. */

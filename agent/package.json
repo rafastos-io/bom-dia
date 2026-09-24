@@ -8,6 +8,7 @@
     "once": "node --env-file-if-exists=.env src/index.js once",
     "backfill": "node --env-file-if-exists=.env src/index.js backfill",
     "watch": "node --env-file-if-exists=.env src/index.js watch",
+    "reconcile": "node --env-file-if-exists=.env src/index.js reconcile",
     "summary": "node --env-file-if-exists=.env src/summary.js",
     "test": "node --test"
   },

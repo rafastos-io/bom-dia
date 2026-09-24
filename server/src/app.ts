@@ -48,7 +48,13 @@ import {
 } from "./data.js"
 import { buildGaps } from "./rules.js"
 import { aiParse, aiWhatsapp } from "./openai.js"
-import { ingestCentral, parseIngest, radarDigest, type RadarIngest } from "./radar.js"
+import {
+  ingestCentral,
+  parseIngest,
+  radarDigest,
+  reconcileMirror,
+  type RadarIngest,
+} from "./radar.js"
 import { buildKey, r2Delete, r2Get, r2Put, safeName } from "./r2.js"
 
 async function readJson(c: Context): Promise<Record<string, unknown>> {
@@ -85,6 +91,15 @@ export function createApp(db: Database): Hono {
       return c.json({ error: (error as Error).message }, 400)
     }
     return c.json(await ingestCentral(db, payload))
+  })
+
+  // Reconstroi o espelho de demandas a partir das tabelas derivadas. A ingestao
+  // pula notas inalteradas, entao este passo e o que materializa o backfill.
+  app.post("/api/radar/reconcile", async (c) => {
+    if (!validServiceToken(c.req.header("authorization"))) {
+      return c.json({ error: "token de servico invalido" }, 401)
+    }
+    return c.json(await reconcileMirror(db))
   })
 
   app.use("/api/*", requireAuth)

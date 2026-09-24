@@ -118,12 +118,39 @@ CREATE TABLE IF NOT EXISTS central_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_central_entries_kind ON central_entries(kind, date);
 CREATE INDEX IF NOT EXISTS idx_central_entries_note ON central_entries(note_path);
+CREATE TABLE IF NOT EXISTS central_task_links (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL,
+  note_path  TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  item_hash  TEXT NOT NULL,
+  state      TEXT DEFAULT 'ativa',
+  text       TEXT DEFAULT '',
+  section    TEXT DEFAULT '',
+  entry_date TEXT DEFAULT '',
+  subtasks   TEXT DEFAULT '[]',
+  created_at TEXT DEFAULT '',
+  updated_at TEXT DEFAULT '',
+  UNIQUE (note_path, item_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_central_task_links_task ON central_task_links(task_id);
+CREATE INDEX IF NOT EXISTS idx_central_task_links_note ON central_task_links(note_path, state);
 `
 
-/** Colunas adicionadas depois da v3.0 (migrações idempotentes). */
+/** Colunas adicionadas depois da v3.0 (migracoes idempotentes). */
 export const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: string }> = [
   { table: "tasks", column: "completed_at", ddl: "completed_at TEXT DEFAULT ''" },
   { table: "tasks", column: "estimate_min", ddl: "estimate_min INTEGER DEFAULT 0" },
+  { table: "projects", column: "central_note", ddl: "central_note TEXT DEFAULT ''" },
+  { table: "central_notes", column: "scope", ddl: "scope TEXT DEFAULT ''" },
+  { table: "central_notes", column: "repositorio", ddl: "repositorio TEXT DEFAULT ''" },
+  { table: "central_notes", column: "caminho_local", ddl: "caminho_local TEXT DEFAULT ''" },
+  { table: "central_entries", column: "subtasks", ddl: "subtasks TEXT DEFAULT '[]'" },
+]
+
+/** Indices que dependem de colunas adicionadas depois da v3.0. */
+const INDEX_MIGRATIONS = [
+  "CREATE INDEX IF NOT EXISTS idx_projects_central_note ON projects(central_note)",
 ]
 
 async function ensureColumn(
@@ -147,5 +174,8 @@ export async function ensureSchema(client: Client): Promise<void> {
   }
   for (const migration of COLUMN_MIGRATIONS) {
     await ensureColumn(client, migration.table, migration.column, migration.ddl)
+  }
+  for (const statement of INDEX_MIGRATIONS) {
+    await client.execute(statement)
   }
 }

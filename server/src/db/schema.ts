@@ -99,6 +99,9 @@ export const centralNotes = sqliteTable("central_notes", {
   mtime: text("mtime").default(""),
   hash: text("hash").default(""),
   links: text("links").default("[]"),
+  scope: text("scope").default(""),
+  repositorio: text("repositorio").default(""),
+  caminhoLocal: text("caminho_local").default(""),
   ingestedAt: text("ingested_at").default(""),
   deletedAt: text("deleted_at").default(""),
 })
@@ -111,4 +114,21 @@ export const centralEntries = sqliteTable("central_entries", {
   date: text("date").default(""),
   section: text("section").default(""),
   itemHash: text("item_hash").notNull(),
+  subtasks: text("subtasks").default("[]"),
+})
+
+/** Vinculo entre uma entrada da CENTRAL e a demanda espelhada no Bom Dia. */
+export const centralTaskLinks = sqliteTable("central_task_links", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: integer("task_id").notNull(),
+  notePath: text("note_path").notNull(),
+  kind: text("kind").notNull(),
+  itemHash: text("item_hash").notNull(),
+  state: text("state").default("ativa"),
+  text: text("text").default(""),
+  section: text("section").default(""),
+  entryDate: text("entry_date").default(""),
+  subtasks: text("subtasks").default("[]"),
+  createdAt: text("created_at").default(""),
+  updatedAt: text("updated_at").default(""),
 })

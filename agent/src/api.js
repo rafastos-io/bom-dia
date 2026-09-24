@@ -43,3 +43,35 @@ export async function sendIngest(
   }
   throw lastError
 }
+
+/**
+ * Reconstroi o espelho de demandas no servidor (POST /api/radar/reconcile).
+ * A ingestao pula notas inalteradas, entao este passo e o que materializa o
+ * espelho no primeiro backfill (ou depois de mudar as regras do espelho).
+ */
+export async function sendReconcile(
+  config,
+  { fetchImpl = fetch, retries = 2, sleep = defaultSleep } = {},
+) {
+  const url = `${config.baseUrl}/api/radar/reconcile`
+  if (config.dryRun) return { dryRun: true }
+  let lastError
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (attempt > 0) await sleep(1000 * 4 ** (attempt - 1))
+    let res
+    try {
+      res = await fetchImpl(url, {
+        method: "POST",
+        headers: { authorization: `Bearer ${config.token}` },
+      })
+    } catch (error) {
+      lastError = error
+      continue
+    }
+    if (res.ok) return await res.json()
+    const body = (await res.text().catch(() => "")).slice(0, 200)
+    lastError = new Error(`reconcile ${res.status}: ${body}`)
+    if (res.status < 500) break
+  }
+  throw lastError
+}
