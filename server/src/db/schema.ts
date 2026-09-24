@@ -43,6 +43,8 @@ export const projects = sqliteTable("projects", {
   collapsed: integer("collapsed").default(0),
   position: integer("position").default(0),
   createdAt: text("created_at"),
+  centralNote: text("central_note").default(""),
+  grupo: text("grupo").default(""),
 })
 
 export const projectLinks = sqliteTable("project_links", {

@@ -4,6 +4,8 @@ import { Tabs, TabsList, TabsTrigger } from "@rafastos/ui/tabs"
 import {
   Archive,
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
   Eye,
   EyeOff,
   Folder,
@@ -167,10 +169,37 @@ function ProjectCard({ project, onOpen }: { project: Project; onOpen: (name: str
   )
 }
 
+/** Ordem dos grupos macro espelhados da CENTRAL; extras entram depois. */
+const GROUP_ORDER = ["Grupo Urban", "Pessoal", "Freelancers", "Estudio FR3D", "Estudo"]
+const NO_GROUP = "Sem grupo"
+
+function groupRank(name: string): number {
+  if (name === NO_GROUP) return 999
+  const index = GROUP_ORDER.indexOf(name)
+  return index === -1 ? 500 : index
+}
+
+function groupProjects(projects: Project[]): Array<{ name: string; projects: Project[] }> {
+  const groups = new Map<string, Project[]>()
+  for (const project of projects) {
+    const key = (project.grupo || "").trim() || NO_GROUP
+    const list = groups.get(key) ?? []
+    list.push(project)
+    groups.set(key, list)
+  }
+  return [...groups.entries()]
+    .map(([name, list]) => ({
+      name,
+      projects: [...list].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    }))
+    .sort((a, b) => groupRank(a.name) - groupRank(b.name) || a.name.localeCompare(b.name, "pt-BR"))
+}
+
 function ProjectList({ onOpen }: { onOpen: (name: string) => void }) {
   const projects = useProjects()
   const tasks = useTasks()
   const [showArchived, setShowArchived] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
   const overlays = useOverlays()
 
   const isArchived = (project: Project) => (project.status || "ativo") !== "ativo"
@@ -252,10 +281,47 @@ function ProjectList({ onOpen }: { onOpen: (name: string) => void }) {
             ))}
           </div>
         ) : (
-          <div className="grid gap-rf-4 md:grid-cols-2 xl:grid-cols-3">
-            {showing.map((project) => (
-              <ProjectCard key={project.id} project={project} onOpen={onOpen} />
-            ))}
+          <div className="flex flex-col gap-rf-5">
+            {groupProjects(showing).map((group) => {
+              const closed = collapsedGroups[group.name] ?? false
+              const ativas = group.projects.reduce(
+                (total, project) => total + project.task_ativas,
+                0,
+              )
+              return (
+                <section key={group.name} className="flex flex-col gap-rf-3">
+                  <button
+                    type="button"
+                    aria-expanded={!closed}
+                    onClick={() =>
+                      setCollapsedGroups((current) => ({ ...current, [group.name]: !closed }))
+                    }
+                    className="flex flex-wrap items-center gap-rf-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {closed ? (
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    ) : (
+                      <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    )}
+                    <span className="rf-label text-foreground">{group.name}</span>
+                    <span className="rf-caption text-muted-foreground">
+                      {group.projects.length}{" "}
+                      {group.projects.length === 1 ? "projeto" : "projetos"}
+                      {ativas
+                        ? ` · ${ativas} ${ativas === 1 ? "tarefa ativa" : "tarefas ativas"}`
+                        : ""}
+                    </span>
+                  </button>
+                  {closed ? null : (
+                    <div className="grid gap-rf-4 md:grid-cols-2 xl:grid-cols-3">
+                      {group.projects.map((project) => (
+                        <ProjectCard key={project.id} project={project} onOpen={onOpen} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )
+            })}
           </div>
         )
       ) : (
@@ -289,6 +355,7 @@ function ArchivedRow({ project, onOpen }: { project: Project; onOpen: (name: str
         {project.name}
       </button>
       <span className="rf-caption text-muted-foreground">
+        {project.grupo ? `${project.grupo} · ` : ""}
         {project.task_ativas} ativa{project.task_ativas === 1 ? "" : "s"}
       </span>
       <Button
@@ -392,6 +459,9 @@ function ProjectCentral({
               <h1 className="truncate text-2xl font-bold tracking-tight text-foreground">
                 {project.name}
               </h1>
+              {project.grupo ? (
+                <p className="rf-caption text-muted-foreground">Grupo: {project.grupo}</p>
+              ) : null}
               {project.scope ? (
                 <p className="line-clamp-2 rf-caption text-muted-foreground">{project.scope}</p>
               ) : null}

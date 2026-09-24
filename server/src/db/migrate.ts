@@ -142,6 +142,7 @@ export const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: stri
   { table: "tasks", column: "completed_at", ddl: "completed_at TEXT DEFAULT ''" },
   { table: "tasks", column: "estimate_min", ddl: "estimate_min INTEGER DEFAULT 0" },
   { table: "projects", column: "central_note", ddl: "central_note TEXT DEFAULT ''" },
+  { table: "projects", column: "grupo", ddl: "grupo TEXT DEFAULT ''" },
   { table: "central_notes", column: "scope", ddl: "scope TEXT DEFAULT ''" },
   { table: "central_notes", column: "repositorio", ddl: "repositorio TEXT DEFAULT ''" },
   { table: "central_notes", column: "caminho_local", ddl: "caminho_local TEXT DEFAULT ''" },

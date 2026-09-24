@@ -247,6 +247,7 @@ type ProjectDict = {
   scope: string
   status: string
   central_note?: string
+  grupo?: string
   links: Array<{ kind: string; target: string; grupo: string }>
   task_ativas: number
 }
@@ -307,6 +308,7 @@ describe("radar: espelho de demandas", () => {
 
     const project = (await listProjects(cookie)).find((item) => item.name === "Produto Espelho")
     expect(project?.central_note).toBe(path)
+    expect(project?.grupo).toBe("Pessoal")
     expect(project?.scope).toBe("Espelhar as demandas da CENTRAL.")
     expect(project?.links.some((link) => link.target === "https://github.com/rafastos-io/exemplo")).toBe(true)
     expect(project?.links.some((link) => link.target === "C:\\projetos\\exemplo")).toBe(true)
@@ -527,6 +529,33 @@ describe("radar: espelho de demandas", () => {
     expect(task?.status).toBe("concluida")
     expect(task?.projeto).toBe("Produto Decisão")
     expect(task?.completed_at).toBe(isoDaysAgo(0))
+  })
+
+  it("espelha o grupo da area e preserva o local quando a nota nao tem area", async () => {
+    const path = "Testes/espelho/grupo.md"
+    const base = (area: string, text: string) =>
+      note({
+        path,
+        title: "Produto Grupo",
+        area,
+        entries: [
+          { kind: "progresso", text, date: isoDaysAgo(2), section: "Registro", subtasks: [] },
+        ],
+      })
+    await ingest({ notes: [base("Grupo Urban", "Base")] })
+    const cookie = await login()
+    let project = (await listProjects(cookie)).find((item) => item.name === "Produto Grupo")
+    expect(project?.grupo).toBe("Grupo Urban")
+
+    // Sem area na nota: o grupo local fica como esta.
+    await ingest({ notes: [base("", "Base 2")] })
+    project = (await listProjects(cookie)).find((item) => item.name === "Produto Grupo")
+    expect(project?.grupo).toBe("Grupo Urban")
+
+    // Area mudou na CENTRAL: o grupo acompanha.
+    await ingest({ notes: [base("Pessoal", "Base 3")] })
+    project = (await listProjects(cookie)).find((item) => item.name === "Produto Grupo")
+    expect(project?.grupo).toBe("Pessoal")
   })
 
   it("reconcile reconstroi o espelho e exige token", async () => {

@@ -84,6 +84,8 @@ export type Project = {
   collapsed: 0 | 1
   position: number
   created_at: string
+  /** Grupo macro espelhado da CENTRAL (area da nota). */
+  grupo?: string
   links: ProjectLink[]
   task_total: number
   task_ativas: number

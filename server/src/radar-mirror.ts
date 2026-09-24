@@ -325,6 +325,8 @@ async function upsertProject(
 ): Promise<number> {
   const scope = note.scope.slice(0, 2000)
   const status = normalizeText(note.status) === "em espera" ? "em-espera" : "ativo"
+  // Grupo macro = area da CENTRAL; sem area na nota, preserva o valor local.
+  const grupo = note.area.trim().slice(0, 120)
   let row = await db.get<{ id: number; name: string }>(
     sql`SELECT id, name FROM projects WHERE central_note = ${note.path}`,
   )
@@ -343,13 +345,15 @@ async function upsertProject(
     if (row.name !== note.title) {
       await db.run(sql`UPDATE tasks SET projeto = ${note.title} WHERE projeto = ${row.name}`)
     }
-    await db.run(
-      sql`UPDATE projects SET name = ${note.title}, scope = ${scope}, status = ${status} WHERE id = ${id}`,
-    )
+    await db.run(sql`
+      UPDATE projects SET name = ${note.title}, scope = ${scope}, status = ${status},
+        grupo = CASE WHEN ${grupo} = '' THEN grupo ELSE ${grupo} END
+      WHERE id = ${id}
+    `)
   } else {
     const result = await db.run(sql`
-      INSERT INTO projects (name, scope, people, status, collapsed, position, created_at, central_note)
-      VALUES (${note.title}, ${scope}, '', ${status}, 0, 0, ${nowText}, ${note.path})
+      INSERT INTO projects (name, scope, people, status, collapsed, position, created_at, central_note, grupo)
+      VALUES (${note.title}, ${scope}, '', ${status}, 0, 0, ${nowText}, ${note.path}, ${grupo})
     `)
     id = Number(result.lastInsertRowid)
   }
