@@ -245,6 +245,9 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   sem novidades (idempotente). **Publicada em 24/09/2026** (`c0e41ee`, deploy `finished`; rota
   `reconcile` negando sem token, container sem erro) e o backfill real rodou em produção
   (**27 projetos, 197 tarefas, 31 subtarefas**); `once` e `reconcile` seguintes sem novidades.
+  **Grupo macro (24/09/2026):** `projects.grupo` espelhado do `area` da nota (vazio preserva o
+  local), tela Projetos em seções colapsáveis por grupo (ordem dos 5 + extras + "Sem grupo") e
+  grupo visível no detalhe/arquivados — publicado em `06909d4`; reconcile preencheu os 27.
 - **F2 — app.** Selo "CENTRAL"/"fechada pela CENTRAL", filtro por fonte, kind `nota` + `obsidian://`,
   fila de divergências (concluída local × aberta na CENTRAL) e matching com IA.
 - **F3 — relatórios.** Fluxo por origem/área/projeto (revisão da semana) e sinais de atividade.
