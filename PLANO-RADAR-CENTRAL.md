@@ -253,8 +253,12 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   (Market Center→MarketCenter; Estúdio FR3D→Produção personalizada do Estudio FR3D) — zero
   projetos sem grupo. **Grupo editável no diálogo do projeto** e na API (`045d256`); nos espelhados
   a área da nota continua mandando.
-- **F2 — app.** Selo "CENTRAL"/"fechada pela CENTRAL", filtro por fonte, kind `nota` + `obsidian://`,
-  fila de divergências (concluída local × aberta na CENTRAL) e matching com IA.
+- **F2 — app.** ✅ F2a publicada em 24/09/2026: vínculo da CENTRAL exposto no `GET /api/tasks`
+  (nota, título, estado e seção), **selo "CENTRAL"** na tabela que abre a nota no Obsidian
+  (`obsidian://`, kind `nota` no app e na API), link "Nota na CENTRAL" no projeto e wikilinks dos
+  itens viram links de nota (reconcile completa sem duplicar; corrigido também o delete dos links
+  gerenciados que duplicava `Código`). Pendente da F2: filtros por fonte/grupo, fila de divergências
+  (concluída local × aberta na CENTRAL) e matching com IA.
 - **F3 — relatórios.** Fluxo por origem/área/projeto (revisão da semana) e sinais de atividade.
 
 ### Fase opcional (depois)
