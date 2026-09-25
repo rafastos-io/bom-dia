@@ -264,7 +264,14 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   amarrar) e **fechadas pela CENTRAL** (reabrir), com `GET /api/radar/revisoes` e
   `POST /api/radar/revisoes/divergente`. Em produção: 0 divergências, 19 sem projeto e 6 fechadas
   para revisar. Pendente da F2: matching com IA (fica para depois).
-- **F3 — relatórios.** Fluxo por origem/área/projeto (revisão da semana) e sinais de atividade.
+- **F3 — relatórios.** ✅ publicada em 24/09/2026: a **Revisão da semana** passou a mostrar o fluxo
+  por **origem** (Da CENTRAL × Manuais: criadas/concluídas) e as **abertas por grupo** (via projeto),
+  sobre todas as demandas; a F2a/F2b já entregaram selos, filtros e a fila.
+- **F4 — atividade sem registro.** ✅ publicada em 24/09/2026: o agente lê o **último commit** dos
+  `caminho_local` (produto/projeto ativos, runner com timeout de 8 s) e envia por
+  `POST /api/radar/activity` (Bearer); o Radar ganhou o painel **Atividade sem registro** (com abrir
+  nota e dispensar) quando o repositório andou depois da última atualização da nota (`activity_at >
+  atualizado_em`, dia a dia). Em produção: 18 repositórios lidos, 3 sem registro para revisar.
 
 ### Fase opcional (depois)
 - [ ] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`).
