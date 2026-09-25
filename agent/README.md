@@ -19,6 +19,9 @@ Bom Dia) — o `backfill` dispara o reconcile no fim para materializá-lo.
   - **decisão:** seção `Decisão` (data do frontmatter).
 - Itens de lista aninhados viram `subtasks` do item pai.
 - Hash do conteúdo extraído evita reenvio; o servidor também deduplica por hash.
+- **Atividade sem registro:** para notas ativas de produto/projeto com `caminho_local`, o
+  agente lê o último commit (`git log -1`, timeout de 8 s) e envia por
+  `POST /api/radar/activity`; roda no `once`/`backfill` e na revarredura de 15 min.
 - Watch com debounce de 2 s + revarredura a cada 15 min (rede de segurança).
 - Arquivo excluído/renomeado no vault vira `deleted` no envio (fecha as tarefas espelhadas).
 
@@ -81,7 +84,8 @@ O `run-forever.cmd` escreve `radar-agent.log` na própria pasta (não versionado
 
 ## Diagnóstico
 
-- `npm test` — testes do parser (diário, produto, projeto, decisão, hash).
+- `npm test` — testes do parser (diário, produto, projeto, decisão, hash), da ordem de
+  envio e da coleta de atividade (runner injetável).
 - `npm run summary` — contagem de arquivos/entradas por tipo e seção.
 - Log de envio: `[radar] N notas, M entradas` / `envio falhou: ...` (401 = token
   errado ou ausente no Coolify; 5xx/rede = o agente repete e depois reenfileira).

@@ -272,6 +272,9 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   `POST /api/radar/activity` (Bearer); o Radar ganhou o painel **Atividade sem registro** (com abrir
   nota e dispensar) quando o repositório andou depois da última atualização da nota (`activity_at >
   atualizado_em`, dia a dia). Em produção: 18 repositórios lidos, 3 sem registro para revisar.
+- **Evolução opcional — matching com IA.** Paráfrases de "concluído" em texto livre (uma linha de
+  sessão que fecha uma demanda semelhante) podem ser sugeridas pela IA do servidor e confirmadas na
+  fila de revisões; nunca automático. Avaliar depois de um período de uso.
 
 ### Fase opcional (depois)
 - [ ] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`).

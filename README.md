@@ -76,13 +76,21 @@ npx tsx scripts/import-sqlite.ts --source ../bomdia.db --target file:./data/bomd
 Sem `--dry-run`, importa preservando ids (re-executável). Para o Turso, use
 `--target $env:TURSO_DATABASE_URL` com `TURSO_AUTH_TOKEN` no ambiente.
 
-## Radar da CENTRAL (agente local)
+## Radar e espelho da CENTRAL (agente local)
 
 O agente em `agent/` observa a CENTRAL e envia progresso e pendências ao Bom Dia —
-somente leitura, com `SERVICE_TOKEN`. Guia completo em `agent/README.md`; atalhos:
+somente leitura, com `SERVICE_TOKEN`. O servidor transforma isso no **espelho de
+demandas** (projetos por nota, tarefas, grupos pelo `area`), na **fila de revisões**
+e nos **sinais de atividade** (último commit dos `caminho_local`). Guia completo em
+`agent/README.md`; atalhos:
 
 ```bash
-npm run agent:summary   # o que o agente enxerga no vault (nao envia)
-npm --prefix agent run backfill
+npm run agent:summary         # o que o agente enxerga no vault (nao envia)
+npm --prefix agent run backfill  # envia tudo, reconcilia o espelho e a atividade
+npm --prefix agent run reconcile # reconstroi o espelho sem reenviar notas
 npm run agent:watch
 ```
+
+Endpoints derivados (ver `PLANO-RADAR-CENTRAL.md`): `POST /api/radar/ingest` e
+`POST /api/radar/activity` (Bearer), `POST /api/radar/reconcile` (Bearer) e, com sessão,
+`GET /api/radar`, `GET /api/radar/revisoes` e os dismiss/reações da fila.
