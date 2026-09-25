@@ -75,7 +75,7 @@ export const apiSubtasks = {
 
 export const apiProjects = {
   list: () => api<Project[]>("GET", "/api/projects"),
-  create: (payload: Partial<Pick<Project, "name" | "scope" | "people">>) =>
+  create: (payload: Partial<Pick<Project, "name" | "scope" | "people" | "grupo">>) =>
     api<{ id: number }>("POST", "/api/projects", payload),
   update: (
     id: number,
@@ -83,6 +83,7 @@ export const apiProjects = {
       name: string
       scope: string
       people: string
+      grupo: string
       status: string
       collapsed: 0 | 1
       links: Array<{ kind: string; label: string; target: string; grupo?: string }>

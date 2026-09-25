@@ -439,11 +439,13 @@ export async function createProject(db: Database, data: Record<string, unknown>)
   if (existing) {
     pid = Number(existing.id)
     await db.run(
-      sql`UPDATE projects SET scope = ${str(data.scope)}, people = ${str(data.people)} WHERE id = ${pid}`,
+      sql`UPDATE projects SET scope = ${str(data.scope)}, people = ${str(data.people)},
+          grupo = ${str(data.grupo)} WHERE id = ${pid}`,
     )
   } else {
     const result = await db.run(
-      sql`INSERT INTO projects (name, scope, people, created_at) VALUES (${name}, ${str(data.scope)}, ${str(data.people)}, ${nowIso()})`,
+      sql`INSERT INTO projects (name, scope, people, grupo, created_at)
+          VALUES (${name}, ${str(data.scope)}, ${str(data.people)}, ${str(data.grupo)}, ${nowIso()})`,
     )
     pid = Number(result.lastInsertRowid)
   }
@@ -459,7 +461,7 @@ export async function updateProject(
   const old = await db.get<{ name: string }>(sql`SELECT name FROM projects WHERE id = ${projectId}`)
   if (!old) return
   const sets: SQL[] = []
-  for (const field of ["name", "scope", "people", "status"] as const) {
+  for (const field of ["name", "scope", "people", "status", "grupo"] as const) {
     if (field in data) sets.push(sql`${sql.raw(field)} = ${str(data[field])}`)
   }
   if ("collapsed" in data) sets.push(sql`collapsed = ${data.collapsed ? 1 : 0}`)

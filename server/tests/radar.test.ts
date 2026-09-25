@@ -558,6 +558,20 @@ describe("radar: espelho de demandas", () => {
     expect(project?.grupo).toBe("Pessoal")
   })
 
+  it("permite editar o grupo do projeto pela API", async () => {
+    const cookie = await login()
+    const project = (await listProjects(cookie)).find((item) => item.name === "Produto Grupo")
+    expect(project).toBeDefined()
+    const res = await app.request(`/api/projects/${project?.id}`, {
+      method: "PUT",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ grupo: "Pessoal" }),
+    })
+    expect(res.status).toBe(200)
+    const updated = (await listProjects(cookie)).find((item) => item.id === project?.id)
+    expect(updated?.grupo).toBe("Pessoal")
+  })
+
   it("reconcile reconstroi o espelho e exige token", async () => {
     const path = "Testes/espelho/reconcile.md"
     await ingest({

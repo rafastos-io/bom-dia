@@ -6,7 +6,7 @@ import { Textarea } from "@rafastos/ui/textarea"
 import { Trash2, Copy } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
-import { useDeleteProject, useSaveProject } from "@/lib/queries"
+import { useDeleteProject, useProjects, useSaveProject } from "@/lib/queries"
 import type { Project } from "@/lib/types"
 import { AppDialog } from "./app/app-dialog"
 import { useConfirm } from "./app/confirm"
@@ -26,11 +26,18 @@ export function ProjectDialog({
 }: ProjectDialogProps) {
   const save = useSaveProject()
   const remove = useDeleteProject()
+  const projects = useProjects()
   const { confirm } = useConfirm()
   // O diálogo remonta a cada abertura (key no provider), então o estado inicial basta.
   const [name, setName] = useState(project?.name ?? "")
   const [scope, setScope] = useState(project?.scope ?? "")
   const [people, setPeople] = useState(project?.people ?? "")
+  const [grupo, setGrupo] = useState(project?.grupo ?? "")
+  const grupos = [
+    ...new Set(
+      (projects.data ?? []).map((item) => (item.grupo ?? "").trim()).filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"))
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -42,7 +49,12 @@ export function ProjectDialog({
     try {
       await save.mutateAsync({
         id: project?.id,
-        payload: { name: trimmed, scope: scope.trim(), people: people.trim() },
+        payload: {
+          name: trimmed,
+          scope: scope.trim(),
+          people: people.trim(),
+          grupo: grupo.trim(),
+        },
       })
       toast.success("Projeto salvo ✓")
       onOpenChange(false)
@@ -77,6 +89,7 @@ export function ProjectDialog({
           name: `${project.name} (cópia)`,
           scope: project.scope ?? "",
           people: project.people ?? "",
+          grupo: project.grupo ?? "",
           links: (project.links ?? []).map((link) => ({
             kind: link.kind,
             label: link.label ?? "",
@@ -124,6 +137,27 @@ export function ProjectDialog({
               onChange={(event) => setScope(event.target.value)}
               placeholder="Visão geral, objetivo, contexto..."
             />
+          </div>
+          <div className="flex flex-col gap-rf-2">
+            <label className="rf-caption font-medium text-foreground" htmlFor="proj-grupo">
+              Grupo <span className="font-normal text-muted-foreground">(macro onde o projeto vive)</span>
+            </label>
+            <Input
+              id="proj-grupo"
+              list="proj-grupos"
+              value={grupo}
+              onChange={(event) => setGrupo(event.target.value)}
+              placeholder="Ex: Grupo Urban"
+            />
+            <datalist id="proj-grupos">
+              {grupos.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+            <p className="text-xs text-muted-foreground">
+              Projetos espelhados da CENTRAL usam a área da nota; o valor local vale quando a nota
+              não tem área.
+            </p>
           </div>
           <div className="flex flex-col gap-rf-2">
             <label className="rf-caption font-medium text-foreground" htmlFor="proj-people">

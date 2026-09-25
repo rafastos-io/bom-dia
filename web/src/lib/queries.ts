@@ -211,7 +211,7 @@ export function useSaveProject() {
       payload,
     }: {
       id?: number
-      payload: Partial<Pick<Project, "name" | "scope" | "people">> & {
+      payload: Partial<Pick<Project, "name" | "scope" | "people" | "grupo">> & {
         status?: string
         collapsed?: 0 | 1
         links?: Array<{ kind: string; label: string; target: string; grupo?: string }>
@@ -219,7 +219,7 @@ export function useSaveProject() {
     }) =>
       id
         ? apiProjects.update(id, payload)
-        : apiProjects.create(payload as Partial<Pick<Project, "name" | "scope" | "people">>),
+        : apiProjects.create(payload as Partial<Pick<Project, "name" | "scope" | "people" | "grupo">>),
     onSuccess: refresh,
   })
 }
