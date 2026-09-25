@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises"
 import { join, relative } from "node:path"
-import { sendIngest } from "./api.js"
+import { collectActivity } from "./activity.js"
+import { sendActivity, sendIngest } from "./api.js"
 import { parseNote } from "./parse.js"
 
 const SKIP_DIRS = new Set([".obsidian", ".trash", ".git", "node_modules", "99 - Sistema"])
@@ -130,4 +131,22 @@ export async function syncFiles(config, state, files, { send = sendIngest, log =
 /** Notas removidas do vault (unlink/rename). */
 export async function syncDeleted(config, state, paths, { send = sendIngest, log = console } = {}) {
   return sendPayload(config, state, [], paths, { send, log })
+}
+
+/** Coleta e envia a atividade dos repositorios (`caminho_local`). */
+export async function syncActivity(config, { send = sendActivity, log = console } = {}) {
+  void log
+  const files = await collectMarkdown(config.centralDir)
+  const notes = []
+  for (const file of files) {
+    try {
+      notes.push(await readNote(config.centralDir, file))
+    } catch {
+      // sumiu ou ficou ilegivel entre a varredura e a leitura
+    }
+  }
+  const items = await collectActivity(notes)
+  if (!items.length) return { items: 0, updated: 0 }
+  const result = await send(config, { items })
+  return { items: items.length, updated: Number(result?.updated ?? 0) }
 }

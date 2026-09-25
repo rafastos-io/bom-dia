@@ -104,6 +104,9 @@ export const centralNotes = sqliteTable("central_notes", {
   scope: text("scope").default(""),
   repositorio: text("repositorio").default(""),
   caminhoLocal: text("caminho_local").default(""),
+  activityAt: text("activity_at").default(""),
+  activityDetail: text("activity_detail").default(""),
+  activityAck: text("activity_ack").default(""),
   ingestedAt: text("ingested_at").default(""),
   deletedAt: text("deleted_at").default(""),
 })

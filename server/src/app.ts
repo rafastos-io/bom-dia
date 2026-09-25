@@ -49,12 +49,16 @@ import {
 import { buildGaps } from "./rules.js"
 import { aiParse, aiWhatsapp } from "./openai.js"
 import {
+  dismissActivity,
   dismissDivergence,
+  ingestActivity,
   ingestCentral,
+  parseActivity,
   parseIngest,
   radarDigest,
   radarReviews,
   reconcileMirror,
+  type RadarActivityInput,
   type RadarIngest,
 } from "./radar.js"
 import { buildKey, r2Delete, r2Get, r2Put, safeName } from "./r2.js"
@@ -102,6 +106,20 @@ export function createApp(db: Database): Hono {
       return c.json({ error: "token de servico invalido" }, 401)
     }
     return c.json(await reconcileMirror(db))
+  })
+
+  // Sinais de atividade dos repositorios (`caminho_local`), enviados pelo agente.
+  app.post("/api/radar/activity", async (c) => {
+    if (!validServiceToken(c.req.header("authorization"))) {
+      return c.json({ error: "token de servico invalido" }, 401)
+    }
+    let payload: RadarActivityInput
+    try {
+      payload = parseActivity(await readJson(c))
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400)
+    }
+    return c.json(await ingestActivity(db, payload))
   })
 
   app.use("/api/*", requireAuth)
@@ -395,6 +413,12 @@ export function createApp(db: Database): Hono {
   app.post("/api/radar/revisoes/divergente", async (c) => {
     const body = await readJson(c)
     const changed = await dismissDivergence(db, Number(body.taskId))
+    return c.json({ ok: true, changed })
+  })
+
+  app.post("/api/radar/revisoes/atividade", async (c) => {
+    const body = await readJson(c)
+    const changed = await dismissActivity(db, String(body.path ?? ""))
     return c.json({ ok: true, changed })
   })
 

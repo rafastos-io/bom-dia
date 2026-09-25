@@ -112,6 +112,14 @@ export function useDismissDivergence() {
   })
 }
 
+export function useDismissActivity() {
+  const refresh = useRefreshData()
+  return useMutation({
+    mutationFn: (path: string) => apiRadar.dismissActivity(path),
+    onSuccess: refresh,
+  })
+}
+
 /** Patch rápido de uma tarefa (reabrir, trocar projeto) fora do diálogo. */
 export function usePatchTask() {
   const refresh = useRefreshData()

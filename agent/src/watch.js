@@ -1,5 +1,5 @@
 import chokidar from "chokidar"
-import { relPath, syncDeleted, syncFiles, syncFull } from "./scan.js"
+import { relPath, syncActivity, syncDeleted, syncFiles, syncFull } from "./scan.js"
 import { saveState } from "./state.js"
 
 const IGNORE = /(^|[\\/])(\.obsidian|\.trash|\.git|node_modules|99 - Sistema)([\\/]|$)/
@@ -73,6 +73,14 @@ export function startWatch(config, state, { log = console } = {}) {
       await saveState(config.statePath, state)
     } catch (error) {
       log.error(`[radar] revarredura falhou: ${error.message}`)
+    }
+    try {
+      const activity = await syncActivity(config)
+      if (activity.items) {
+        log.log(`[radar] atividade: ${activity.items} repositorios lidos`)
+      }
+    } catch (error) {
+      log.error(`[radar] atividade falhou: ${error.message}`)
     }
   }
 

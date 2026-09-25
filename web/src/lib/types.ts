@@ -200,8 +200,18 @@ export type RadarReviewItem = {
   section: string
 }
 
+/** Atividade detectada no repositório depois da última atualização da nota. */
+export type RadarActivityItem = {
+  path: string
+  title: string
+  updatedAt: string
+  activityAt: string
+  detail: string
+}
+
 export type RadarReviews = {
   divergentes: RadarReviewItem[]
   semProjeto: RadarReviewItem[]
   fechadas: RadarReviewItem[]
+  semRegistro: RadarActivityItem[]
 }

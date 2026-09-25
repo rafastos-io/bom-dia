@@ -177,6 +177,8 @@ export const apiRadar = {
   reviews: () => api<RadarReviews>("GET", "/api/radar/revisoes"),
   dismissDivergence: (taskId: number) =>
     api<{ ok: boolean; changed: number }>("POST", "/api/radar/revisoes/divergente", { taskId }),
+  dismissActivity: (path: string) =>
+    api<{ ok: boolean; changed: number }>("POST", "/api/radar/revisoes/atividade", { path }),
 }
 
 export const apiOpen = {

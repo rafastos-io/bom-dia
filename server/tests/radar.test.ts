@@ -596,6 +596,63 @@ describe("radar: espelho de demandas", () => {
     expect(central).toHaveLength(1)
   })
 
+  it("registra atividade do repositorio e lista o que andou sem registro", async () => {
+    const path = "Testes/espelho/atividade.md"
+    const base = (updatedAt: string) =>
+      note({
+        path,
+        title: "Produto Atividade",
+        updatedAt,
+        entries: [
+          { kind: "progresso", text: "Base", date: updatedAt, section: "Registro", subtasks: [] },
+        ],
+      })
+    await ingest({ notes: [base(isoDaysAgo(6))] })
+
+    expect(
+      (
+        await app.request("/api/radar/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: [] }),
+        })
+      ).status,
+    ).toBe(401)
+
+    const res = await app.request("/api/radar/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: TOKEN },
+      body: JSON.stringify({
+        items: [{ path, activityAt: isoDaysAgo(1), detail: "feat: andou no repo" }],
+      }),
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ updated: 1 })
+
+    const cookie = await login()
+    const read = async () => {
+      const reviews = await app.request("/api/radar/revisoes", { headers: { Cookie: cookie } })
+      expect(reviews.status).toBe(200)
+      return (await reviews.json()) as {
+        semRegistro: Array<{ path: string; detail: string }>
+      }
+    }
+    expect((await read()).semRegistro.some((item) => item.path === path)).toBe(true)
+
+    // Dispensar tira da fila ate o repositorio andar de novo.
+    const dismiss = await app.request("/api/radar/revisoes/atividade", {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    })
+    expect(dismiss.status).toBe(200)
+    expect((await read()).semRegistro.some((item) => item.path === path)).toBe(false)
+
+    // Documentou na CENTRAL (nota mais nova que a atividade): continua fora.
+    await ingest({ notes: [base(isoDaysAgo(0))] })
+    expect((await read()).semRegistro.some((item) => item.path === path)).toBe(false)
+  })
+
   it("monta a fila de revisoes e aceita divergencia", async () => {
     expect((await app.request("/api/radar/revisoes")).status).toBe(401)
 

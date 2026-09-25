@@ -16,7 +16,7 @@
  */
 import { loadConfig } from "./config.js"
 import { sendReconcile } from "./api.js"
-import { syncFull } from "./scan.js"
+import { syncActivity, syncFull } from "./scan.js"
 import { loadState, saveState } from "./state.js"
 import { startWatch } from "./watch.js"
 
@@ -56,6 +56,10 @@ if (command === "reconcile") {
       `${mirror.updated ?? 0} atualizadas, ${mirror.closed ?? 0} fechadas, ` +
       `${mirror.reopened ?? 0} reabertas, ${mirror.subtasks ?? 0} subtarefas`,
   )
+  const activity = await syncActivity(config)
+  console.log(
+    `[radar] atividade: ${activity.items} repositorios lidos, ${activity.updated} atualizados`,
+  )
   if (command === "backfill") {
     const rest = await sendReconcile(config)
     console.log(
@@ -76,6 +80,14 @@ if (command === "reconcile") {
     )
   } catch (error) {
     console.error(`[radar] varredura inicial falhou (o watch tenta de novo): ${error.message}`)
+  }
+  try {
+    const activity = await syncActivity(config)
+    if (activity.items) {
+      console.log(`[radar] atividade: ${activity.items} repositorios lidos`)
+    }
+  } catch (error) {
+    console.error(`[radar] atividade falhou (o rescan tenta de novo): ${error.message}`)
   }
   startWatch(config, state)
   console.log(`[radar] observando ${config.centralDir} (Ctrl+C para sair)`)

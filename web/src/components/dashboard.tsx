@@ -275,7 +275,7 @@ export function Dashboard({
         title="Revisão da semana"
         description="Fluxo dos últimos 7 dias — o que entrou, o que saiu e em quanto tempo."
       >
-        <WeeklyReview tasks={visible} />
+        <WeeklyReview tasks={tasks.data ?? []} projects={projects.data ?? []} />
       </Panel>
 
       <div className="flex justify-center">

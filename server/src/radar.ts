@@ -268,7 +268,51 @@ export async function reconcileMirror(db: Database): Promise<MirrorReport> {
   return reconcileAll(db)
 }
 
+// ------------------------------------------------------------------ atividade
+
+export type RadarActivityInput = {
+  items: Array<{ path: string; activityAt: string; detail: string }>
+}
+
+/** Sinais de atividade enviados pelo agente (ultimo commit dos caminho_local). */
+export function parseActivity(raw: unknown): RadarActivityInput {
+  const body = (raw ?? {}) as Record<string, unknown>
+  const rawItems = Array.isArray(body.items) ? body.items : []
+  const items: RadarActivityInput["items"] = []
+  for (const rawItem of rawItems.slice(0, MAX_NOTES_PER_BATCH)) {
+    const item = (rawItem ?? {}) as Record<string, unknown>
+    const path = normalizePath(item.path)
+    const activityAt = asDate(item.activityAt)
+    if (!path || !activityAt) continue
+    items.push({ path, activityAt, detail: asString(item.detail).slice(0, 200) })
+  }
+  return { items }
+}
+
+export async function ingestActivity(
+  db: Database,
+  payload: RadarActivityInput,
+): Promise<{ updated: number }> {
+  let updated = 0
+  for (const item of payload.items) {
+    const result = await db.run(sql`
+      UPDATE central_notes SET activity_at = ${item.activityAt}, activity_detail = ${item.detail}
+      WHERE path = ${item.path}
+    `)
+    updated += result.rowsAffected
+  }
+  return { updated }
+}
+
 // ------------------------------------------------------------- fila de revisoes
+
+export type RadarActivityItem = {
+  path: string
+  title: string
+  updatedAt: string
+  activityAt: string
+  detail: string
+}
 
 export type RadarReviewItem = {
   id: number
@@ -288,6 +332,8 @@ export type RadarReviews = {
   semProjeto: RadarReviewItem[]
   /** Fechadas pelo espelho porque o item saiu da nota (revisao de falso positivo). */
   fechadas: RadarReviewItem[]
+  /** Atividade detectada no repositorio depois da ultima atualizacao da nota. */
+  semRegistro: RadarActivityItem[]
 }
 
 export async function radarReviews(db: Database): Promise<RadarReviews> {
@@ -327,7 +373,29 @@ export async function radarReviews(db: Database): Promise<RadarReviews> {
     ORDER BY t.completed_at DESC, t.id DESC
     LIMIT 20
   `)
-  return { divergentes, semProjeto, fechadas }
+  const activityRows = await db.all<RadarActivityItem & { status: string; tipo: string }>(sql`
+    SELECT path, COALESCE(title, '') AS title, COALESCE(updated_at, '') AS updatedAt,
+           activity_at AS activityAt, COALESCE(activity_detail, '') AS detail,
+           COALESCE(status, '') AS status, COALESCE(tipo, '') AS tipo
+    FROM central_notes
+    WHERE deleted_at = '' AND activity_at <> ''
+      AND activity_at > updated_at AND activity_at > activity_ack
+    ORDER BY activity_at DESC, path
+    LIMIT 50
+  `)
+  const semRegistro: RadarActivityItem[] = activityRows
+    .filter(
+      (row) =>
+        (row.tipo === "produto" || row.tipo === "projeto") && !isClosedNoteStatus(row.status),
+    )
+    .map((row) => ({
+      path: row.path,
+      title: row.title,
+      updatedAt: row.updatedAt,
+      activityAt: row.activityAt,
+      detail: row.detail,
+    }))
+  return { divergentes, semProjeto, fechadas, semRegistro }
 }
 
 /** Aceita a divergencia: mantem a tarefa concluida e para de listar. */
@@ -336,6 +404,14 @@ export async function dismissDivergence(db: Database, taskId: number): Promise<n
   const result = await db.run(sql`
     UPDATE central_task_links SET state = 'concluida', updated_at = ${nowText}
     WHERE task_id = ${taskId} AND state = 'ativa'
+  `)
+  return result.rowsAffected
+}
+
+/** Dispensa a atividade ate que o repositorio ande de novo. */
+export async function dismissActivity(db: Database, path: string): Promise<number> {
+  const result = await db.run(sql`
+    UPDATE central_notes SET activity_ack = activity_at WHERE path = ${path}
   `)
   return result.rowsAffected
 }

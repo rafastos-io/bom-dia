@@ -146,6 +146,9 @@ export const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: stri
   { table: "central_notes", column: "scope", ddl: "scope TEXT DEFAULT ''" },
   { table: "central_notes", column: "repositorio", ddl: "repositorio TEXT DEFAULT ''" },
   { table: "central_notes", column: "caminho_local", ddl: "caminho_local TEXT DEFAULT ''" },
+  { table: "central_notes", column: "activity_at", ddl: "activity_at TEXT DEFAULT ''" },
+  { table: "central_notes", column: "activity_detail", ddl: "activity_detail TEXT DEFAULT ''" },
+  { table: "central_notes", column: "activity_ack", ddl: "activity_ack TEXT DEFAULT ''" },
   { table: "central_entries", column: "subtasks", ddl: "subtasks TEXT DEFAULT '[]'" },
 ]
 

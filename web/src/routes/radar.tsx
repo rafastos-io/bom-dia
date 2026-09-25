@@ -12,6 +12,7 @@ import { ScreenHeader } from "@/components/app/screen-header"
 import { Segmented } from "@/components/app/segmented"
 import { openLink } from "@/lib/open"
 import {
+  useDismissActivity,
   useDismissDivergence,
   usePatchTask,
   useProjects,
@@ -19,7 +20,7 @@ import {
   useRadarReviews,
 } from "@/lib/queries"
 import { fmtDate } from "@/lib/tasks"
-import type { RadarItem, RadarReviewItem } from "@/lib/types"
+import type { RadarActivityItem, RadarItem, RadarReviewItem } from "@/lib/types"
 
 type RadarView = "progresso" | "no-ar" | "revisoes"
 
@@ -89,7 +90,10 @@ export function RadarPage() {
 
   const totalProgresso = progresso.reduce((total, day) => total + day.items.length, 0)
   const totalRevisoes = reviews.data
-    ? reviews.data.divergentes.length + reviews.data.semProjeto.length + reviews.data.fechadas.length
+    ? reviews.data.divergentes.length +
+      reviews.data.semProjeto.length +
+      reviews.data.fechadas.length +
+      reviews.data.semRegistro.length
     : 0
 
   const refresh = (
@@ -290,6 +294,7 @@ function ReviewRow({
    const reviews = useRadarReviews()
    const patch = usePatchTask()
    const dismiss = useDismissDivergence()
+   const dismissActivity = useDismissActivity()
    const projects = useProjects()
    const projectNames = (projects.data ?? [])
      .map((project) => project.name)
@@ -307,7 +312,7 @@ function ReviewRow({
      )
    }
 
-   const { divergentes, semProjeto, fechadas } = reviews.data
+   const { divergentes, semProjeto, fechadas, semRegistro } = reviews.data
    const failed = (error: unknown) =>
      toast.error(error instanceof Error ? error.message : "Não deu pra atualizar")
 
@@ -410,6 +415,53 @@ function ReviewRow({
                    </NativeSelect>
                  }
                />
+             ))}
+           </ul>
+         )}
+       </Panel>
+
+       <Panel
+         title="Atividade sem registro"
+         description="O repositório andou depois da última atualização da nota — documente na CENTRAL ou dispense."
+       >
+         {semRegistro.length === 0 ? (
+           <EmptyState
+             mascot="thumbsup"
+             title="Nada sem registro"
+             description="Toda atividade recente dos repositórios já está documentada."
+           />
+         ) : (
+           <ul className="flex flex-col">
+             {semRegistro.map((item: RadarActivityItem) => (
+               <li
+                 key={item.path}
+                 className="flex min-w-0 flex-wrap items-center gap-rf-3 border-b border-[var(--rf-border)] py-rf-3 last:border-b-0"
+               >
+                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                   <p className="rf-caption text-foreground">{item.title || item.path}</p>
+                   <p className="rf-caption text-muted-foreground">
+                     {item.detail ? `${item.detail} · ` : ""}
+                     atividade {fmtDate(item.activityAt)} · nota em {fmtDate(item.updatedAt)}
+                   </p>
+                 </div>
+                 <Button
+                   type="button"
+                   variant="outline"
+                   size="sm"
+                   onClick={() => void openLink("nota", item.path)}
+                 >
+                   Abrir nota
+                 </Button>
+                 <Button
+                   type="button"
+                   variant="ghost"
+                   size="sm"
+                   disabled={dismissActivity.isPending}
+                   onClick={() => dismissActivity.mutate(item.path, { onError: failed })}
+                 >
+                   Dispensar
+                 </Button>
+               </li>
              ))}
            </ul>
          )}
