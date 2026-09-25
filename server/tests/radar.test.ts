@@ -284,7 +284,7 @@ describe("radar: espelho de demandas", () => {
           entries: [
             {
               kind: "proxima_acao",
-              text: "Executar a F1 do espelho (ver https://exemplo.com/spec)",
+              text: "Executar a F1 do espelho ([[Pessoal/02 - Projetos/Bom Dia - Demandas espelhadas da CENTRAL|projeto]] · ver https://exemplo.com/spec)",
               date: isoDaysAgo(0),
               section: "Próximas ações",
               subtasks: [
@@ -306,6 +306,11 @@ describe("radar: espelho de demandas", () => {
     expect(task?.status).toBe("aberta")
     expect(task?.description).toContain(path)
     expect(task?.links.some((link) => link.target === "https://exemplo.com/spec")).toBe(true)
+    expect(
+      task?.links.some(
+        (link) => link.kind === "nota" && link.target.includes("Bom Dia - Demandas espelhadas"),
+      ),
+    ).toBe(true)
     expect(task?.subtasks.map((subtask) => subtask.title)).toEqual([
       "migração das tabelas",
       "parser do agente",
@@ -318,6 +323,9 @@ describe("radar: espelho de demandas", () => {
     expect(project?.scope).toBe("Espelhar as demandas da CENTRAL.")
     expect(project?.links.some((link) => link.target === "https://github.com/rafastos-io/exemplo")).toBe(true)
     expect(project?.links.some((link) => link.target === "C:\\projetos\\exemplo")).toBe(true)
+    expect(
+      project?.links.some((link) => link.kind === "nota" && link.target === path),
+    ).toBe(true)
   })
 
   it("limpa wikilinks no titulo da tarefa espelhada", async () => {
@@ -562,6 +570,30 @@ describe("radar: espelho de demandas", () => {
     await ingest({ notes: [base("Pessoal", "Base 3")] })
     project = (await listProjects(cookie)).find((item) => item.name === "Produto Grupo")
     expect(project?.grupo).toBe("Pessoal")
+  })
+
+  it("nao duplica os links gerenciados do projeto a cada sync", async () => {
+    const path = "Testes/espelho/links.md"
+    const base = (text: string) =>
+      note({
+        path,
+        title: "Produto Links",
+        repositorio: "https://github.com/rafastos-io/links",
+        caminhoLocal: "C:\\projetos\\links",
+        entries: [
+          { kind: "progresso", text, date: isoDaysAgo(2), section: "Registro", subtasks: [] },
+        ],
+      })
+    await ingest({ notes: [base("Base")] })
+    await ingest({ notes: [base("Base 2")] })
+    const cookie = await login()
+    const project = (await listProjects(cookie)).find((item) => item.name === "Produto Links")
+    const codigo = (project?.links ?? []).filter((link) => link.grupo === "Código")
+    expect(codigo).toHaveLength(2)
+    const central = (project?.links ?? []).filter(
+      (link) => link.grupo === "CENTRAL" && link.kind === "nota",
+    )
+    expect(central).toHaveLength(1)
   })
 
   it("expoe o vinculo com a CENTRAL na tarefa", async () => {

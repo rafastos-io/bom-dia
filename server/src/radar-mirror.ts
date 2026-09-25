@@ -191,10 +191,24 @@ function extractUrls(text: string): string[] {
   return [...new Set(matches)].slice(0, 10)
 }
 
+/** Wikilinks do item viram links de nota (`obsidian://` montado no front). */
+function extractWikiLinks(text: string): string[] {
+  const matches = [...text.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)].map((match) =>
+    (match[1] ?? "").trim(),
+  )
+  return [...new Set(matches)].filter(Boolean).slice(0, 5)
+}
+
 async function insertTaskLinks(db: Database, taskId: number, text: string): Promise<void> {
   for (const target of extractUrls(text)) {
     await db.run(
       sql`INSERT INTO links (task_id, kind, label, target) VALUES (${taskId}, 'web', '', ${target})`,
+    )
+  }
+  for (const target of extractWikiLinks(text)) {
+    const label = target.split("/").pop() ?? target
+    await db.run(
+      sql`INSERT INTO links (task_id, kind, label, target) VALUES (${taskId}, 'nota', ${label}, ${target})`,
     )
   }
 }
@@ -360,10 +374,12 @@ async function upsertProject(
   report.projects += 1
 
   // Links gerenciados pelo espelho (os grupos proprios ficam intactos).
+  // "Codigo" sem acento fica na lista por causa dos vinculos criados antes da correcao.
   await db.run(
-    sql`DELETE FROM project_links WHERE project_id = ${id} AND grupo IN ('CENTRAL', 'Codigo')`,
+    sql`DELETE FROM project_links WHERE project_id = ${id} AND grupo IN ('CENTRAL', 'Código', 'Codigo')`,
   )
   const managed: Array<[string, string, string, string]> = []
+  if (note.path) managed.push(["nota", "Nota na CENTRAL", note.path, "CENTRAL"])
   if (note.repositorio) managed.push(["web", "Repositório", note.repositorio, "Código"])
   if (note.caminhoLocal) managed.push(["pasta", "Pasta local", note.caminhoLocal, "Código"])
   for (const [kind, label, target, grupo] of managed) {
