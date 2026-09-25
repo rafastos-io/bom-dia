@@ -268,6 +268,78 @@ export async function reconcileMirror(db: Database): Promise<MirrorReport> {
   return reconcileAll(db)
 }
 
+// ------------------------------------------------------------- fila de revisoes
+
+export type RadarReviewItem = {
+  id: number
+  title: string
+  status: string
+  projeto: string
+  completedAt: string
+  path: string
+  note: string
+  section: string
+}
+
+export type RadarReviews = {
+  /** Concluidas no Bom Dia enquanto o item segue aberto na CENTRAL. */
+  divergentes: RadarReviewItem[]
+  /** Tarefas sem projeto (candidatas a amarrar num contexto). */
+  semProjeto: RadarReviewItem[]
+  /** Fechadas pelo espelho porque o item saiu da nota (revisao de falso positivo). */
+  fechadas: RadarReviewItem[]
+}
+
+export async function radarReviews(db: Database): Promise<RadarReviews> {
+  const divergentes = await db.all<RadarReviewItem>(sql`
+    SELECT t.id, t.title, COALESCE(t.status, 'aberta') AS status, COALESCE(t.projeto, '') AS projeto,
+           COALESCE(t.completed_at, '') AS completedAt, l.note_path AS path,
+           COALESCE(n.title, '') AS note, COALESCE(l.section, '') AS section
+    FROM central_task_links l
+    JOIN tasks t ON t.id = l.task_id
+    LEFT JOIN central_notes n ON n.path = l.note_path
+    WHERE l.state = 'ativa' AND t.status = 'concluida'
+    ORDER BY t.completed_at DESC, t.id DESC
+    LIMIT 50
+  `)
+  const semProjeto = await db.all<RadarReviewItem>(sql`
+    SELECT t.id, t.title, COALESCE(t.status, 'aberta') AS status, '' AS projeto,
+           COALESCE(t.completed_at, '') AS completedAt,
+           COALESCE(MIN(l.note_path), '') AS path,
+           COALESCE(MIN(n.title), '') AS note,
+           COALESCE(MIN(l.section), '') AS section
+    FROM tasks t
+    LEFT JOIN central_task_links l ON l.task_id = t.id
+    LEFT JOIN central_notes n ON n.path = l.note_path
+    WHERE COALESCE(t.projeto, '') = ''
+    GROUP BY t.id
+    ORDER BY CASE WHEN t.status = 'concluida' THEN 1 ELSE 0 END, t.id DESC
+    LIMIT 100
+  `)
+  const fechadas = await db.all<RadarReviewItem>(sql`
+    SELECT t.id, t.title, COALESCE(t.status, 'aberta') AS status, COALESCE(t.projeto, '') AS projeto,
+           COALESCE(t.completed_at, '') AS completedAt, l.note_path AS path,
+           COALESCE(n.title, '') AS note, COALESCE(l.section, '') AS section
+    FROM central_task_links l
+    JOIN tasks t ON t.id = l.task_id
+    LEFT JOIN central_notes n ON n.path = l.note_path
+    WHERE l.state = 'resolvida' AND t.status = 'concluida'
+    ORDER BY t.completed_at DESC, t.id DESC
+    LIMIT 20
+  `)
+  return { divergentes, semProjeto, fechadas }
+}
+
+/** Aceita a divergencia: mantem a tarefa concluida e para de listar. */
+export async function dismissDivergence(db: Database, taskId: number): Promise<number> {
+  const nowText = new Date().toISOString().slice(0, 19)
+  const result = await db.run(sql`
+    UPDATE central_task_links SET state = 'concluida', updated_at = ${nowText}
+    WHERE task_id = ${taskId} AND state = 'ativa'
+  `)
+  return result.rowsAffected
+}
+
 export type RadarItem = {
   text: string
   kind: string

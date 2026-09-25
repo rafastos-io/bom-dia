@@ -122,6 +122,12 @@ export type FilterOptions = {
   prio: "todas" | Prioridade
   lateOnly: boolean
   search: string
+  /** Origem: espelhada da CENTRAL, criada no Bom Dia ou todas. */
+  origem: "todas" | "central" | "manuais"
+  /** Grupo macro do projeto da tarefa ("todos" = sem filtro). */
+  grupo: string
+  /** nome do projeto (minúsculo) -> grupo. */
+  groups: Map<string, string>
 }
 
 export function matchesFilters(
@@ -144,6 +150,15 @@ export function matchesFilters(
   }
   if (opts.prio !== "todas" && task.priority !== opts.prio) return false
   if (opts.lateOnly && !isLate(task)) return false
+  if (opts.origem !== "todas") {
+    const fromCentral = Boolean(task.central)
+    if (opts.origem === "central" && !fromCentral) return false
+    if (opts.origem === "manuais" && fromCentral) return false
+  }
+  if (opts.grupo !== "todos") {
+    const projeto = (task.projeto || "").trim().toLowerCase()
+    if (!projeto || (opts.groups.get(projeto) ?? "") !== opts.grupo) return false
+  }
   if (opts.search) {
     const hay = `${task.title} ${task.requested_by} ${task.send_to} ${task.description}`.toLowerCase()
     if (!hay.includes(opts.search.toLowerCase())) return false

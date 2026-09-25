@@ -1,9 +1,11 @@
 import { NativeSelect, NativeSelectOption } from "@rafastos/ui/native-select"
 import { cn } from "cn"
 import { Columns3, LayoutGrid, List, Repeat2, TriangleAlert } from "lucide-react"
+import { useMemo } from "react"
 import { Chip } from "@/components/app/chip"
 import { SearchField } from "@/components/app/search-field"
-import { useListView } from "./list-view"
+import { useProjects } from "@/lib/queries"
+import { useListView, type OrigemFilter } from "./list-view"
 import { PRIO_LABEL, type FilterKey, type SortKey, type ViewKey } from "@/lib/tasks"
 import type { Prioridade } from "@/lib/types"
 
@@ -11,6 +13,12 @@ const STATUS_FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "ativas", label: "Ativas" },
   { key: "todas", label: "Todas" },
   { key: "concluida", label: "Concluídas" },
+]
+
+const ORIGENS: Array<{ key: OrigemFilter; label: string }> = [
+  { key: "todas", label: "Tudo" },
+  { key: "central", label: "Da CENTRAL" },
+  { key: "manuais", label: "Manuais" },
 ]
 
 const VIEWS: Array<{ key: ViewKey; label: string; icon: typeof LayoutGrid }> = [
@@ -36,6 +44,15 @@ export function ViewToolbar({
   hideViewToggle?: boolean
 }) {
   const view = useListView()
+  const projects = useProjects()
+  const grupos = useMemo(() => {
+    const names = new Set<string>()
+    for (const project of projects.data ?? []) {
+      const grupo = (project.grupo ?? "").trim()
+      if (grupo) names.add(grupo)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"))
+  }, [projects.data])
 
   return (
     <div className={cn("flex flex-col gap-rf-3", className)}>
@@ -52,6 +69,18 @@ export function ViewToolbar({
               key={item.key}
               active={view.filter === item.key}
               onClick={() => view.setFilter(item.key)}
+            >
+              {item.label}
+            </Chip>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-rf-1">
+          {ORIGENS.map((item) => (
+            <Chip
+              key={item.key}
+              active={view.origem === item.key}
+              onClick={() => view.setOrigem(item.key)}
             >
               {item.label}
             </Chip>
@@ -124,6 +153,23 @@ export function ViewToolbar({
             Recorrentes
           </Chip>
         </div>
+
+        {grupos.length ? (
+          <NativeSelect
+            size="sm"
+            className="w-44 shrink-0"
+            aria-label="Filtrar por grupo"
+            value={view.grupo}
+            onChange={(event) => view.setGrupo(event.target.value)}
+          >
+            <NativeSelectOption value="todos">Todos os grupos</NativeSelectOption>
+            {grupos.map((name) => (
+              <NativeSelectOption key={name} value={name}>
+                {name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        ) : null}
 
         <NativeSelect
           size="sm"

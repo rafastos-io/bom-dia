@@ -49,9 +49,11 @@ import {
 import { buildGaps } from "./rules.js"
 import { aiParse, aiWhatsapp } from "./openai.js"
 import {
+  dismissDivergence,
   ingestCentral,
   parseIngest,
   radarDigest,
+  radarReviews,
   reconcileMirror,
   type RadarIngest,
 } from "./radar.js"
@@ -386,6 +388,15 @@ export function createApp(db: Database): Hono {
 
   // ------------------------------------------------------------------- radar ---
   app.get("/api/radar", async (c) => c.json(await radarDigest(db)))
+
+  // Fila de revisoes do espelho (divergencias, sem projeto e fechadas pela CENTRAL).
+  app.get("/api/radar/revisoes", async (c) => c.json(await radarReviews(db)))
+
+  app.post("/api/radar/revisoes/divergente", async (c) => {
+    const body = await readJson(c)
+    const changed = await dismissDivergence(db, Number(body.taskId))
+    return c.json({ ok: true, changed })
+  })
 
   app.all("/api/*", (c) => c.json({ error: "rota nao encontrada" }, 404))
 

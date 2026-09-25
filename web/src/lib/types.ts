@@ -187,3 +187,21 @@ export type RadarDigest = {
   noAr: RadarNoArItem[]
   atualizadoEm: string
 }
+
+/** Item da fila de revisões do espelho. */
+export type RadarReviewItem = {
+  id: number
+  title: string
+  status: string
+  projeto: string
+  completedAt: string
+  path: string
+  note: string
+  section: string
+}
+
+export type RadarReviews = {
+  divergentes: RadarReviewItem[]
+  semProjeto: RadarReviewItem[]
+  fechadas: RadarReviewItem[]
+}

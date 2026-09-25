@@ -29,6 +29,7 @@ export const qk = {
   projects: ["projects"] as const,
   aiStatus: ["ai-status"] as const,
   radar: ["radar"] as const,
+  reviews: ["radar-revisoes"] as const,
   notes: (projectId: number) => ["notes", projectId] as const,
   attachments: (ownerType: string, ownerId: number) =>
     ["attachments", ownerType, ownerId] as const,
@@ -39,6 +40,7 @@ function useRefreshData() {
   return () => {
     void qc.invalidateQueries({ queryKey: qk.tasks })
     void qc.invalidateQueries({ queryKey: qk.projects })
+    void qc.invalidateQueries({ queryKey: qk.reviews })
   }
 }
 
@@ -89,6 +91,39 @@ export function useRadar() {
     queryFn: apiRadar.digest,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+  })
+}
+
+/** Fila de revisões do espelho (divergências, sem projeto e fechadas pela CENTRAL). */
+export function useRadarReviews() {
+  return useQuery({
+    queryKey: qk.reviews,
+    queryFn: apiRadar.reviews,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useDismissDivergence() {
+  const refresh = useRefreshData()
+  return useMutation({
+    mutationFn: (taskId: number) => apiRadar.dismissDivergence(taskId),
+    onSuccess: refresh,
+  })
+}
+
+/** Patch rápido de uma tarefa (reabrir, trocar projeto) fora do diálogo. */
+export function usePatchTask() {
+  const refresh = useRefreshData()
+  return useMutation({
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: number
+      patch: Partial<TaskPayload> & { status?: string }
+    }) => apiTasks.update(id, patch),
+    onSuccess: refresh,
   })
 }
 

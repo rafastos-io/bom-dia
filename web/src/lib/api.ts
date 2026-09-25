@@ -5,6 +5,7 @@ import type {
   ParsedPayload,
   Project,
   RadarDigest,
+  RadarReviews,
   Task,
   TaskPayload,
   WhatsappPayload,
@@ -173,6 +174,9 @@ export const apiAi = {
 
 export const apiRadar = {
   digest: () => api<RadarDigest>("GET", "/api/radar"),
+  reviews: () => api<RadarReviews>("GET", "/api/radar/revisoes"),
+  dismissDivergence: (taskId: number) =>
+    api<{ ok: boolean; changed: number }>("POST", "/api/radar/revisoes/divergente", { taskId }),
 }
 
 export const apiOpen = {

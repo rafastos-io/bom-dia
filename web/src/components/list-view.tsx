@@ -15,12 +15,16 @@ const LEGACY_VIEW_KEY = "bomdia_view"
 
 type AreaKey = "hoje" | "agenda" | "rotina" | "ideias" | "projetos"
 
+export type OrigemFilter = "todas" | "central" | "manuais"
+
 type PersistedView = {
   filter: FilterKey
   prio: "todas" | Prioridade
   sort: SortKey
   lateOnly: boolean
   recurringOnly: boolean
+  origem: OrigemFilter
+  grupo: string
   view: ViewKey
 }
 
@@ -30,6 +34,8 @@ const DEFAULTS: PersistedView = {
   sort: "prioridade",
   lateOnly: false,
   recurringOnly: false,
+  origem: "todas",
+  grupo: "todos",
   view: "cards",
 }
 
@@ -39,6 +45,8 @@ type ListViewContextValue = PersistedView & {
   setSort: (value: SortKey) => void
   setLateOnly: (value: boolean) => void
   setRecurringOnly: (value: boolean) => void
+  setOrigem: (value: OrigemFilter) => void
+  setGrupo: (value: string) => void
   setSearch: (value: string) => void
   setView: (value: ViewKey) => void
   search: string
@@ -122,6 +130,10 @@ export function ListViewProvider({ children }: { children: ReactNode }) {
       setLateOnly: (value: boolean) => patch({ lateOnly: value }),
       recurringOnly: current.recurringOnly,
       setRecurringOnly: (value: boolean) => patch({ recurringOnly: value }),
+      origem: current.origem,
+      setOrigem: (value: OrigemFilter) => patch({ origem: value }),
+      grupo: current.grupo,
+      setGrupo: (value: string) => patch({ grupo: value }),
       view: current.view,
       setView: (value: ViewKey) => patch({ view: value }),
       search,

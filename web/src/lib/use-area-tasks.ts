@@ -18,6 +18,17 @@ export function useAreaTasks(area: AreaId, openProject: string | null = null) {
     [projects.data],
   )
 
+  const groups = useMemo(
+    () =>
+      new Map(
+        (projects.data ?? []).map((project) => [
+          project.name.trim().toLowerCase(),
+          (project.grupo ?? "").trim(),
+        ]),
+      ),
+    [projects.data],
+  )
+
   const list = useMemo(() => {
     const filtered = (tasks.data ?? [])
       .filter((task) =>
@@ -31,6 +42,9 @@ export function useAreaTasks(area: AreaId, openProject: string | null = null) {
             prio: view.prio,
             lateOnly: view.lateOnly,
             search: view.search,
+            origem: view.origem,
+            grupo: view.grupo,
+            groups,
           },
           { ignoreStatus: view.view === "kanban" },
         ),
@@ -46,6 +60,9 @@ export function useAreaTasks(area: AreaId, openProject: string | null = null) {
     view.prio,
     view.lateOnly,
     view.recurringOnly,
+    view.origem,
+    view.grupo,
+    groups,
     view.search,
     view.sort,
     view.view,

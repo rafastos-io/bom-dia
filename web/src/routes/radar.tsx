@@ -1,18 +1,27 @@
 import { Button } from "@rafastos/ui/button"
+import { NativeSelect, NativeSelectOption } from "@rafastos/ui/native-select"
 import { Skeleton } from "@rafastos/ui/skeleton"
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react"
-import { useState } from "react"
+import { Check, ChevronDown, ChevronRight, RefreshCw, RotateCcw } from "lucide-react"
+import { useState, type ReactNode } from "react"
+import { toast } from "sonner"
 import { QueryError } from "@/components/area-board"
 import { Dot, type DotTone } from "@/components/app/dot"
 import { EmptyState } from "@/components/app/empty-state"
 import { Panel } from "@/components/app/panel"
 import { ScreenHeader } from "@/components/app/screen-header"
 import { Segmented } from "@/components/app/segmented"
+import { openLink } from "@/lib/open"
+import {
+  useDismissDivergence,
+  usePatchTask,
+  useProjects,
+  useRadar,
+  useRadarReviews,
+} from "@/lib/queries"
 import { fmtDate } from "@/lib/tasks"
-import { useRadar } from "@/lib/queries"
-import type { RadarItem } from "@/lib/types"
+import type { RadarItem, RadarReviewItem } from "@/lib/types"
 
-type RadarView = "progresso" | "no-ar"
+type RadarView = "progresso" | "no-ar" | "revisoes"
 
 const NO_AR_PAGE = 20
 const DAY_PREVIEW = 8
@@ -68,6 +77,7 @@ function ItemLine({ item, meta, clamp }: { item: RadarItem; meta?: string; clamp
 
 export function RadarPage() {
   const radar = useRadar()
+  const reviews = useRadarReviews()
   const [view, setView] = useState<RadarView>("progresso")
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({})
   const [fullDays, setFullDays] = useState<Record<string, boolean>>({})
@@ -78,6 +88,9 @@ export function RadarPage() {
   const synced = fmtSync(radar.data?.atualizadoEm ?? "")
 
   const totalProgresso = progresso.reduce((total, day) => total + day.items.length, 0)
+  const totalRevisoes = reviews.data
+    ? reviews.data.divergentes.length + reviews.data.semProjeto.length + reviews.data.fechadas.length
+    : 0
 
   const refresh = (
     <div className="flex items-center gap-rf-2">
@@ -131,6 +144,7 @@ export function RadarPage() {
               items={[
                 { value: "progresso", label: `Progresso (${totalProgresso})` },
                 { value: "no-ar", label: `No ar (${noAr.length})` },
+                { value: "revisoes", label: `Revisões${totalRevisoes ? ` (${totalRevisoes})` : ""}` },
               ]}
             />
           </div>
@@ -197,7 +211,7 @@ export function RadarPage() {
                 </ol>
               )}
             </Panel>
-          ) : (
+          ) : view === "no-ar" ? (
             <Panel
               title="No ar"
               description="O que ficou aberto e não reapareceu como concluído — os mais velhos primeiro."
@@ -236,12 +250,219 @@ export function RadarPage() {
                       </Button>
                     </div>
                   ) : null}
-                </>
-              )}
-            </Panel>
-          )}
-        </>
-      )}
-    </>
-  )
-}
+                 </>
+               )}
+             </Panel>
+           ) : (
+             <RevisoesView />
+           )}
+         </>
+       )}
+     </>
+   )
+ }
+
+function ReviewRow({
+   item,
+   actions,
+   meta,
+ }: {
+   item: RadarReviewItem
+   actions: ReactNode
+   meta?: string
+ }) {
+   return (
+     <li className="flex min-w-0 flex-wrap items-center gap-rf-3 border-b border-[var(--rf-border)] py-rf-3 last:border-b-0">
+       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+         <p className="rf-caption text-foreground">{item.title}</p>
+         <p className="rf-caption text-muted-foreground">
+           {item.note || "Sem nota"}
+           {item.section ? ` · ${item.section}` : ""}
+           {meta ? ` · ${meta}` : ""}
+         </p>
+       </div>
+       {actions}
+     </li>
+   )
+ }
+
+ function RevisoesView() {
+   const reviews = useRadarReviews()
+   const patch = usePatchTask()
+   const dismiss = useDismissDivergence()
+   const projects = useProjects()
+   const projectNames = (projects.data ?? [])
+     .map((project) => project.name)
+     .sort((a, b) => a.localeCompare(b, "pt-BR"))
+
+   if (reviews.isPending) {
+     return <Skeleton className="h-64 rounded-[var(--rf-radius-card)]" />
+   }
+   if (reviews.isError || !reviews.data) {
+     return (
+       <QueryError
+         message="Não consegui carregar a fila de revisões."
+         onRetry={() => void reviews.refetch()}
+       />
+     )
+   }
+
+   const { divergentes, semProjeto, fechadas } = reviews.data
+   const failed = (error: unknown) =>
+     toast.error(error instanceof Error ? error.message : "Não deu pra atualizar")
+
+   return (
+     <div className="flex flex-col gap-rf-4">
+       <Panel
+         title="Divergências"
+         description="Concluídas aqui, mas ainda abertas na CENTRAL — reabra ou mantenha e ajuste a nota depois."
+       >
+         {divergentes.length === 0 ? (
+           <EmptyState
+             mascot="thumbsup"
+             title="Nada divergindo"
+             description="Nenhuma demanda concluída aqui ficou aberta na CENTRAL."
+           />
+         ) : (
+           <ul className="flex flex-col">
+             {divergentes.map((item) => (
+               <ReviewRow
+                 key={item.id}
+                 item={item}
+                 meta={item.completedAt ? `concluída em ${fmtDate(item.completedAt.slice(0, 10))}` : ""}
+                 actions={
+                   <>
+                     <Button
+                       type="button"
+                       variant="outline"
+                       size="sm"
+                       disabled={patch.isPending}
+                       onClick={() =>
+                         patch.mutate(
+                           { id: item.id, patch: { status: "aberta" } },
+                           { onError: failed },
+                         )
+                       }
+                     >
+                       <RotateCcw aria-hidden /> Reabrir
+                     </Button>
+                     <Button
+                       type="button"
+                       variant="ghost"
+                       size="sm"
+                       disabled={dismiss.isPending}
+                       onClick={() => dismiss.mutate(item.id, { onError: failed })}
+                     >
+                       <Check aria-hidden /> Manter
+                     </Button>
+                     <Button
+                       type="button"
+                       variant="ghost"
+                       size="sm"
+                       onClick={() => void openLink("nota", item.path)}
+                     >
+                       Abrir nota
+                     </Button>
+                   </>
+                 }
+               />
+             ))}
+           </ul>
+         )}
+       </Panel>
+
+       <Panel
+         title="Sem projeto"
+         description="Demandas soltas — escolha o projeto para amarrar cada uma."
+       >
+         {semProjeto.length === 0 ? (
+           <EmptyState mascot="thumbsup" title="Tudo com projeto" description="Nenhuma demanda solta." />
+         ) : (
+           <ul className="flex flex-col">
+             {semProjeto.map((item) => (
+               <ReviewRow
+                 key={item.id}
+                 item={item}
+                 meta={item.status === "concluida" ? "concluída" : "aberta"}
+                 actions={
+                   <NativeSelect
+                     size="sm"
+                     className="w-56"
+                     aria-label={`Projeto de ${item.title}`}
+                     value={item.projeto}
+                     disabled={patch.isPending}
+                     onChange={(event) =>
+                       patch.mutate(
+                         { id: item.id, patch: { projeto: event.target.value } },
+                         {
+                           onError: failed,
+                           onSuccess: () => toast.success("Projeto atualizado ✓"),
+                         },
+                       )
+                     }
+                   >
+                     <NativeSelectOption value="">Sem projeto</NativeSelectOption>
+                     {projectNames.map((name) => (
+                       <NativeSelectOption key={name} value={name}>
+                         {name}
+                       </NativeSelectOption>
+                     ))}
+                   </NativeSelect>
+                 }
+               />
+             ))}
+           </ul>
+         )}
+       </Panel>
+
+       <Panel
+         title="Fechadas pela CENTRAL"
+         description="Itens que saíram da nota e fecharam a demanda — reabra se foi engano."
+       >
+         {fechadas.length === 0 ? (
+           <EmptyState
+             mascot="thumbsup"
+             title="Nenhum fechamento recente"
+             description="Nada fechado pelo espelho para revisar."
+           />
+         ) : (
+           <ul className="flex flex-col">
+             {fechadas.map((item) => (
+               <ReviewRow
+                 key={item.id}
+                 item={item}
+                 meta={item.completedAt ? `fechada em ${fmtDate(item.completedAt.slice(0, 10))}` : ""}
+                 actions={
+                   <>
+                     <Button
+                       type="button"
+                       variant="outline"
+                       size="sm"
+                       disabled={patch.isPending}
+                       onClick={() =>
+                         patch.mutate(
+                           { id: item.id, patch: { status: "aberta" } },
+                           { onError: failed },
+                         )
+                       }
+                     >
+                       <RotateCcw aria-hidden /> Reabrir
+                     </Button>
+                     <Button
+                       type="button"
+                       variant="ghost"
+                       size="sm"
+                       onClick={() => void openLink("nota", item.path)}
+                     >
+                       Abrir nota
+                     </Button>
+                   </>
+                 }
+               />
+             ))}
+           </ul>
+         )}
+       </Panel>
+     </div>
+   )
+ }

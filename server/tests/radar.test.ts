@@ -596,6 +596,72 @@ describe("radar: espelho de demandas", () => {
     expect(central).toHaveLength(1)
   })
 
+  it("monta a fila de revisoes e aceita divergencia", async () => {
+    expect((await app.request("/api/radar/revisoes")).status).toBe(401)
+
+    const path = "Testes/espelho/revisoes.md"
+    const base = (entries: Array<Record<string, unknown>>) =>
+      note({ path, title: "Produto Revisões", entries })
+    await ingest({
+      notes: [
+        base([
+          { kind: "aberto", text: "Item concluido aqui", date: isoDaysAgo(2), section: "Pendências", subtasks: [] },
+          { kind: "aberto", text: "Item fechado pela central", date: isoDaysAgo(2), section: "Marcos", subtasks: [] },
+        ]),
+      ],
+    })
+    const cookie = await login()
+    const tasks = await listTasks(cookie)
+    const concluido = tasks.find((item) => item.title === "Item concluido aqui")
+    const fechado = tasks.find((item) => item.title === "Item fechado pela central")
+
+    const update = await app.request(`/api/tasks/${concluido?.id}`, {
+      method: "PUT",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "concluida" }),
+    })
+    expect(update.status).toBe(200)
+
+    // Remove o item da nota: o espelho fecha a tarefa vinculada.
+    await ingest({
+      notes: [
+        base([
+          { kind: "aberto", text: "Item concluido aqui", date: isoDaysAgo(2), section: "Pendências", subtasks: [] },
+        ]),
+      ],
+    })
+
+    type Reviews = {
+      divergentes: Array<{ id: number }>
+      semProjeto: Array<{ id: number; title: string }>
+      fechadas: Array<{ id: number }>
+    }
+    const read = async (): Promise<Reviews> => {
+      const res = await app.request("/api/radar/revisoes", { headers: { Cookie: cookie } })
+      expect(res.status).toBe(200)
+      return (await res.json()) as Reviews
+    }
+
+    const reviews = await read()
+    expect(reviews.divergentes.some((item) => item.id === concluido?.id)).toBe(true)
+    expect(reviews.fechadas.some((item) => item.id === fechado?.id)).toBe(true)
+
+    await app.request("/api/tasks", {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Sem dono", tipo: "tarefa" }),
+    })
+    expect((await read()).semProjeto.some((item) => item.title === "Sem dono")).toBe(true)
+
+    const dismiss = await app.request("/api/radar/revisoes/divergente", {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: concluido?.id }),
+    })
+    expect(dismiss.status).toBe(200)
+    expect((await read()).divergentes.some((item) => item.id === concluido?.id)).toBe(false)
+  })
+
   it("mantem o link de nota unico ao re-sincronizar a tarefa", async () => {
     const path = "Testes/espelho/nota-link.md"
     const base = (text: string) =>
