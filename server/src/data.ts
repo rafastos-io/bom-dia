@@ -21,6 +21,8 @@ export type TaskRow = {
 }
 
 export type LinkRow = { id: number; task_id: number; kind: string; label: string | null; target: string }
+/** Vinculo derivado da CENTRAL exposto junto da tarefa (somente leitura). */
+export type TaskCentralRef = { path: string; title: string; state: string; section: string }
 export type SubtaskRow = { id: number; task_id: number; title: string; done: number; position: number }
 export type IdeaLinkRow = {
   id: number
@@ -68,6 +70,19 @@ export async function listTasks(db: Database) {
   const projectRows = await db.all<{ id: number; name: string }>(
     sql`SELECT id, name FROM projects`,
   )
+  const centralRows = await db.all<{
+    task_id: number
+    note_path: string
+    state: string | null
+    section: string | null
+    note_title: string | null
+  }>(sql`
+    SELECT l.task_id, l.note_path, COALESCE(l.state, '') AS state, COALESCE(l.section, '') AS section,
+           COALESCE(n.title, '') AS note_title
+    FROM central_task_links l
+    LEFT JOIN central_notes n ON n.path = l.note_path
+    ORDER BY l.id
+  `)
 
   const linksByTask = new Map<number, LinkRow[]>()
   for (const link of allLinks) {
@@ -84,6 +99,21 @@ export async function listTasks(db: Database) {
   const countByTask = new Map(counts.map((c) => [Number(c.owner_id), Number(c.n)]))
   const projectNames = new Map(projectRows.map((p) => [Number(p.id), p.name]))
   const taskById = new Map(tasks.map((t) => [Number(t.id), t]))
+
+  // Vinculo com a CENTRAL (o estado "ativa" ganha do "sub"/"concluida"/"resolvida").
+  const centralByTask = new Map<number, TaskCentralRef>()
+  for (const row of centralRows) {
+    const candidate: TaskCentralRef = {
+      path: row.note_path,
+      title: row.note_title ?? "",
+      state: row.state ?? "",
+      section: row.section ?? "",
+    }
+    const current = centralByTask.get(Number(row.task_id))
+    if (!current || (current.state !== "ativa" && candidate.state === "ativa")) {
+      centralByTask.set(Number(row.task_id), candidate)
+    }
+  }
 
   const ideasByIdea = new Map<number, IdeaLinkRow[]>()
   for (const row of ideaRows) {
@@ -111,6 +141,7 @@ export async function listTasks(db: Database) {
     ...taskToDict(task, linksByTask.get(Number(task.id)) ?? [], subsByTask.get(Number(task.id)) ?? []),
     idea_links: (task.tipo || "") === "ideia" ? (ideasByIdea.get(Number(task.id)) ?? []) : [],
     attach_count: countByTask.get(Number(task.id)) ?? 0,
+    central: centralByTask.get(Number(task.id)) ?? null,
   }))
 }
 
@@ -163,6 +194,12 @@ export async function ensureProject(db: Database, name: string): Promise<void> {
   }
 }
 
+function linkKind(value: unknown): string {
+  if (value === "pasta") return "pasta"
+  if (value === "nota") return "nota"
+  return "web"
+}
+
 async function insertLinks(db: Database, taskId: number, links: unknown[]): Promise<void> {
   for (const item of links ?? []) {
     if (typeof item !== "object" || item === null) continue
@@ -170,7 +207,7 @@ async function insertLinks(db: Database, taskId: number, links: unknown[]): Prom
     const target = str(link.target)
     if (!target) continue
     await db.run(
-      sql`INSERT INTO links (task_id, kind, label, target) VALUES (${taskId}, ${link.kind === "pasta" ? "pasta" : "web"}, ${str(link.label)}, ${target})`,
+      sql`INSERT INTO links (task_id, kind, label, target) VALUES (${taskId}, ${linkKind(link.kind)}, ${str(link.label)}, ${target})`,
     )
   }
 }
@@ -424,7 +461,7 @@ async function replaceProjectLinks(db: Database, projectId: number, links: unkno
     if (!target) continue
     await db.run(
       sql`INSERT INTO project_links (project_id, kind, label, target, grupo)
-          VALUES (${projectId}, ${link.kind === "pasta" ? "pasta" : "web"}, ${str(link.label)}, ${target}, ${str(link.grupo)})`,
+          VALUES (${projectId}, ${linkKind(link.kind)}, ${str(link.label)}, ${target}, ${str(link.grupo)})`,
     )
   }
 }

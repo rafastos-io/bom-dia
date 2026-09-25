@@ -13,7 +13,7 @@ import { useConfirm } from "./app/confirm"
 export function LinksHub({ project }: { project: Project }) {
   const save = useSaveProject()
   const { prompt } = useConfirm()
-  const [kind, setKind] = useState<"web" | "pasta">("web")
+  const [kind, setKind] = useState<"web" | "pasta" | "nota">("web")
   const [grupo, setGrupo] = useState("")
   const [label, setLabel] = useState("")
   const [target, setTarget] = useState("")
@@ -74,10 +74,11 @@ export function LinksHub({ project }: { project: Project }) {
           aria-label="Tipo"
           size="sm"
           value={kind}
-          onChange={(event) => setKind(event.target.value as "web" | "pasta")}
+          onChange={(event) => setKind(event.target.value as "web" | "pasta" | "nota")}
         >
           <NativeSelectOption value="web">Web</NativeSelectOption>
           <NativeSelectOption value="pasta">Pasta</NativeSelectOption>
+          <NativeSelectOption value="nota">Nota (Obsidian)</NativeSelectOption>
         </NativeSelect>
         <Input
           className="h-8"
@@ -99,7 +100,7 @@ export function LinksHub({ project }: { project: Project }) {
         />
         <Input
           className="h-8"
-          placeholder="Cole o link (https://...) ou o caminho da pasta"
+          placeholder="Cole o link (https://...), o caminho da pasta ou o caminho da nota (.md)"
           value={target}
           onChange={(event) => setTarget(event.target.value)}
           onKeyDown={(event) => {

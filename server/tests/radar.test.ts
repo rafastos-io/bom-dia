@@ -71,7 +71,11 @@ async function ingest(body: unknown, token: string | null = TOKEN) {
   })
 }
 
+let session: string | null = null
+
 async function login(): Promise<string> {
+  // Uma sessao por arquivo: o POST /login tem rate-limit por IP.
+  if (session) return session
   const res = await app.request("/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -79,7 +83,8 @@ async function login(): Promise<string> {
   })
   expect(res.status).toBe(200)
   const cookie = res.headers.get("set-cookie") ?? ""
-  return cookie.split(";")[0] ?? ""
+  session = cookie.split(";")[0] ?? ""
+  return session
 }
 
 type Digest = {
@@ -239,6 +244,7 @@ type TaskDict = {
   completed_at?: string
   links: Array<{ kind: string; target: string }>
   subtasks: Array<{ title: string; done: number }>
+  central?: { path: string; title: string; state: string; section: string } | null
 }
 
 type ProjectDict = {
@@ -556,6 +562,33 @@ describe("radar: espelho de demandas", () => {
     await ingest({ notes: [base("Pessoal", "Base 3")] })
     project = (await listProjects(cookie)).find((item) => item.name === "Produto Grupo")
     expect(project?.grupo).toBe("Pessoal")
+  })
+
+  it("expoe o vinculo com a CENTRAL na tarefa", async () => {
+    const path = "Testes/espelho/central-info.md"
+    await ingest({
+      notes: [
+        note({
+          path,
+          title: "Produto Central Info",
+          entries: [
+            {
+              kind: "aberto",
+              text: "Demanda com vínculo",
+              date: isoDaysAgo(1),
+              section: "Pendências",
+              subtasks: [],
+            },
+          ],
+        }),
+      ],
+    })
+    const cookie = await login()
+    const task = (await listTasks(cookie)).find((item) => item.title === "Demanda com vínculo")
+    expect(task?.central?.path).toBe(path)
+    expect(task?.central?.title).toBe("Produto Central Info")
+    expect(task?.central?.state).toBe("ativa")
+    expect(task?.central?.section).toBe("Pendências")
   })
 
   it("permite editar o grupo do projeto pela API", async () => {

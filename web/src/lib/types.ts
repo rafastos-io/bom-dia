@@ -2,7 +2,7 @@ export type Tipo = "tarefa" | "ideia" | "rotina"
 export type Prioridade = "alta" | "media" | "baixa"
 export type Status = "aberta" | "andamento" | "concluida"
 export type Recorrencia = "" | "diaria" | "semanal" | "mensal"
-export type LinkKind = "web" | "pasta"
+export type LinkKind = "web" | "pasta" | "nota"
 
 export type TaskLink = {
   id?: number
@@ -26,6 +26,9 @@ export type IdeaLink = {
   target_tipo?: Tipo
 }
 
+/** Vinculo derivado da CENTRAL exposto junto da tarefa (somente leitura). */
+export type TaskCentral = { path: string; title: string; state: string; section: string }
+
 export type Task = {
   id: number
   title: string
@@ -48,6 +51,8 @@ export type Task = {
   attach_count: number
   completed_at?: string
   estimate_min?: number
+  /** Vínculo com a CENTRAL (espelho), quando existir. */
+  central?: TaskCentral | null
 }
 
 export type TaskPayload = {

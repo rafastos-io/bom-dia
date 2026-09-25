@@ -9,6 +9,7 @@ import { Segmented } from "@/components/app/segmented"
 import { useConfirm } from "@/components/app/confirm"
 import { useOverlays } from "@/components/overlay-provider"
 import { StatusSelect } from "@/components/task-items"
+import { openLink } from "@/lib/open"
 import { useBulkDeleteTasks, useBulkTaskAction } from "@/lib/queries"
 import { fmtDate, isLate, substaskProgress } from "@/lib/tasks"
 import type { Task } from "@/lib/types"
@@ -251,6 +252,19 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                         >
                           {task.title}
                         </span>
+                        {task.central ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void openLink("nota", task.central?.path ?? "")
+                            }}
+                            title={`Na CENTRAL: ${task.central.title || task.central.path}`}
+                            className="inline-flex shrink-0 items-center rounded-full bg-[var(--rf-hover)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                          >
+                            CENTRAL
+                          </button>
+                        ) : null}
                       </span>
                     </td>
                     <td
