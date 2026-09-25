@@ -48,6 +48,7 @@ import {
 } from "./data.js"
 import { buildGaps } from "./rules.js"
 import { aiParse, aiWhatsapp } from "./openai.js"
+import { analyzeSuggestions, decideSuggestion, type AiAsk } from "./radar-ai.js"
 import {
   dismissActivity,
   dismissDivergence,
@@ -72,7 +73,7 @@ async function serveIndex(c: Context): Promise<Response> {
   return c.html(html)
 }
 
-export function createApp(db: Database): Hono {
+export function createApp(db: Database, options: { aiAsk?: AiAsk } = {}): Hono {
   const app = new Hono()
 
   app.use("*", async (c, next) => {
@@ -420,6 +421,21 @@ export function createApp(db: Database): Hono {
     const body = await readJson(c)
     const changed = await dismissActivity(db, String(body.path ?? ""))
     return c.json({ ok: true, changed })
+  })
+
+  // Matching com IA (sob demanda): cria sugestoes para revisao humana.
+  app.post("/api/radar/revisoes/ia", async (c) => {
+    try {
+      return c.json(await analyzeSuggestions(db, { ask: options.aiAsk }))
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 502)
+    }
+  })
+
+  app.post("/api/radar/revisoes/sugestao", async (c) => {
+    const body = await readJson(c)
+    const action = String(body.action ?? "") === "ignorar" ? "ignorar" : "aceitar"
+    return c.json(await decideSuggestion(db, Number(body.id), action))
   })
 
   app.all("/api/*", (c) => c.json({ error: "rota nao encontrada" }, 404))

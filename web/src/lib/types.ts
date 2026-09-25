@@ -209,9 +209,21 @@ export type RadarActivityItem = {
   detail: string
 }
 
+/** Fechamento sugerido pela IA a partir de texto livre (revisão humana). */
+export type RadarSuggestionItem = {
+  id: number
+  taskId: number
+  taskTitle: string
+  note: string
+  entryText: string
+  entryDate: string
+  confidence: number
+}
+
 export type RadarReviews = {
   divergentes: RadarReviewItem[]
   semProjeto: RadarReviewItem[]
   fechadas: RadarReviewItem[]
   semRegistro: RadarActivityItem[]
+  sugestoes: RadarSuggestionItem[]
 }

@@ -7,6 +7,22 @@ let app: import("hono").Hono
 let dir: string
 let client: import("@libsql/client").Client
 
+/** Fake da IA: so casa o registro do teste (evita chamar a OpenAI de verdade). */
+const aiAsk: import("../src/radar-ai.js").AiAsk = async (_db, _system, user) => {
+  const batches = JSON.parse(user) as Array<{
+    entry: number
+    text: string
+    candidates: Array<{ id: number }>
+  }>
+  const matches = []
+  for (const batch of batches) {
+    if (!/relatorio mensal/i.test(batch.text)) continue
+    const candidate = batch.candidates[0]
+    if (candidate) matches.push({ entry: batch.entry, task: candidate.id, confidence: 0.95 })
+  }
+  return { matches }
+}
+
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "bomdia-radar-"))
   const { createDatabase } = await import("../src/db/client.js")
@@ -15,7 +31,7 @@ beforeAll(async () => {
   const database = createDatabase(`file:${join(dir, "test.db")}`)
   client = database.client
   await ensureSchema(client)
-  app = createApp(database.db)
+  app = createApp(database.db, { aiAsk })
 })
 
 afterAll(async () => {
@@ -594,6 +610,73 @@ describe("radar: espelho de demandas", () => {
       (link) => link.grupo === "CENTRAL" && link.kind === "nota",
     )
     expect(central).toHaveLength(1)
+  })
+
+  it("sugere e aplica o fechamento por IA", async () => {
+    expect((await app.request("/api/radar/revisoes/ia", { method: "POST" })).status).toBe(401)
+
+    const path = "Testes/espelho/ia.md"
+    const base = (extra: Array<Record<string, unknown>>, updatedAt?: string) =>
+      note({
+        path,
+        title: "Produto IA",
+        ...(updatedAt ? { updatedAt } : {}),
+        entries: [
+          {
+            kind: "aberto",
+            text: "Publicar o relatorio mensal",
+            date: isoDaysAgo(3),
+            section: "Pendências",
+            subtasks: [],
+          },
+          ...extra,
+        ],
+      })
+    await ingest({ notes: [base([])] })
+    await ingest({
+      notes: [
+        base(
+          [
+            {
+              kind: "progresso",
+              text: "Relatorio mensal enviado para a diretoria",
+              date: isoDaysAgo(1),
+              section: "Última sessão",
+              subtasks: [],
+            },
+          ],
+          isoDaysAgo(1),
+        ),
+      ],
+    })
+
+    const cookie = await login()
+    const task = (await listTasks(cookie)).find((item) => item.title === "Publicar o relatorio mensal")
+    expect(task?.status).toBe("aberta")
+
+    const run = await app.request("/api/radar/revisoes/ia", {
+      method: "POST",
+      headers: { Cookie: cookie },
+    })
+    expect(run.status).toBe(200)
+    expect(await run.json()).toMatchObject({ suggested: 1 })
+
+    const reviews = await app.request("/api/radar/revisoes", { headers: { Cookie: cookie } })
+    const data = (await reviews.json()) as {
+      sugestoes: Array<{ id: number; taskId: number; confidence: number }>
+    }
+    const suggestion = data.sugestoes.find((item) => item.taskId === task?.id)
+    expect(suggestion).toBeDefined()
+    expect(suggestion?.confidence).toBeGreaterThanOrEqual(0.8)
+
+    const decide = await app.request("/api/radar/revisoes/sugestao", {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: suggestion?.id, action: "aceitar" }),
+    })
+    expect(decide.status).toBe(200)
+    const after = (await listTasks(cookie)).find((item) => item.id === task?.id)
+    expect(after?.status).toBe("concluida")
   })
 
   it("registra atividade do repositorio e lista o que andou sem registro", async () => {

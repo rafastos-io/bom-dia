@@ -151,6 +151,19 @@ async function callOpenAI(
   }
 }
 
+/** Chamada generica que devolve o JSON da resposta (usada pelo matching do radar). */
+export async function aiJson(db: Database, system: string, user: string): Promise<unknown> {
+  const raw = await callOpenAI(
+    db,
+    [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    { temperature: 0, timeout: 60 },
+  )
+  return extractJson(raw)
+}
+
 function extractJson(text: string): unknown {
   let clean = text.trim()
   if (clean.startsWith("```")) {

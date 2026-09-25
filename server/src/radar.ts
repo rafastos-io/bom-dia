@@ -314,6 +314,16 @@ export type RadarActivityItem = {
   detail: string
 }
 
+export type RadarSuggestionItem = {
+  id: number
+  taskId: number
+  taskTitle: string
+  note: string
+  entryText: string
+  entryDate: string
+  confidence: number
+}
+
 export type RadarReviewItem = {
   id: number
   title: string
@@ -334,6 +344,8 @@ export type RadarReviews = {
   fechadas: RadarReviewItem[]
   /** Atividade detectada no repositorio depois da ultima atualizacao da nota. */
   semRegistro: RadarActivityItem[]
+  /** Fechamentos sugeridos pela IA a partir de texto livre (revisao humana). */
+  sugestoes: RadarSuggestionItem[]
 }
 
 export async function radarReviews(db: Database): Promise<RadarReviews> {
@@ -395,7 +407,18 @@ export async function radarReviews(db: Database): Promise<RadarReviews> {
       activityAt: row.activityAt,
       detail: row.detail,
     }))
-  return { divergentes, semProjeto, fechadas, semRegistro }
+  const sugestoes = await db.all<RadarSuggestionItem>(sql`
+    SELECT s.id, s.task_id AS taskId, COALESCE(t.title, '') AS taskTitle,
+           COALESCE(n.title, '') AS note, s.entry_text AS entryText, s.entry_date AS entryDate,
+           s.confidence
+    FROM radar_suggestions s
+    JOIN tasks t ON t.id = s.task_id
+    LEFT JOIN central_notes n ON n.path = s.path
+    WHERE s.status = 'pendente' AND COALESCE(t.status, 'aberta') <> 'concluida'
+    ORDER BY s.confidence DESC, s.id DESC
+    LIMIT 50
+  `)
+  return { divergentes, semProjeto, fechadas, semRegistro, sugestoes }
 }
 
 /** Aceita a divergencia: mantem a tarefa concluida e para de listar. */

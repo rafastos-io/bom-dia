@@ -120,6 +120,24 @@ export function useDismissActivity() {
   })
 }
 
+/** Roda o matching com IA (sob demanda) e recarrega a fila. */
+export function useAnalyzeAI() {
+  const refresh = useRefreshData()
+  return useMutation({
+    mutationFn: () => apiRadar.analyzeAi(),
+    onSuccess: refresh,
+  })
+}
+
+export function useSuggestionAction() {
+  const refresh = useRefreshData()
+  return useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "aceitar" | "ignorar" }) =>
+      apiRadar.suggestion(id, action),
+    onSuccess: refresh,
+  })
+}
+
 /** Patch rápido de uma tarefa (reabrir, trocar projeto) fora do diálogo. */
 export function usePatchTask() {
   const refresh = useRefreshData()

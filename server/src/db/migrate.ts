@@ -135,6 +135,20 @@ CREATE TABLE IF NOT EXISTS central_task_links (
 );
 CREATE INDEX IF NOT EXISTS idx_central_task_links_task ON central_task_links(task_id);
 CREATE INDEX IF NOT EXISTS idx_central_task_links_note ON central_task_links(note_path, state);
+CREATE TABLE IF NOT EXISTS radar_suggestions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL,
+  path       TEXT DEFAULT '',
+  item_hash  TEXT DEFAULT '',
+  entry_text TEXT DEFAULT '',
+  entry_date TEXT DEFAULT '',
+  confidence REAL DEFAULT 0,
+  status     TEXT DEFAULT 'pendente',
+  created_at TEXT DEFAULT '',
+  updated_at TEXT DEFAULT '',
+  UNIQUE (item_hash, task_id)
+);
+CREATE INDEX IF NOT EXISTS idx_radar_suggestions_status ON radar_suggestions(status);
 `
 
 /** Colunas adicionadas depois da v3.0 (migracoes idempotentes). */

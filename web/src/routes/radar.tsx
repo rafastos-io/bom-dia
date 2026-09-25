@@ -1,7 +1,7 @@
 import { Button } from "@rafastos/ui/button"
 import { NativeSelect, NativeSelectOption } from "@rafastos/ui/native-select"
 import { Skeleton } from "@rafastos/ui/skeleton"
-import { Check, ChevronDown, ChevronRight, RefreshCw, RotateCcw } from "lucide-react"
+import { Check, ChevronDown, ChevronRight, RefreshCw, RotateCcw, Sparkles } from "lucide-react"
 import { useState, type ReactNode } from "react"
 import { toast } from "sonner"
 import { QueryError } from "@/components/area-board"
@@ -12,15 +12,22 @@ import { ScreenHeader } from "@/components/app/screen-header"
 import { Segmented } from "@/components/app/segmented"
 import { openLink } from "@/lib/open"
 import {
+  useAnalyzeAI,
   useDismissActivity,
   useDismissDivergence,
   usePatchTask,
   useProjects,
   useRadar,
   useRadarReviews,
+  useSuggestionAction,
 } from "@/lib/queries"
 import { fmtDate } from "@/lib/tasks"
-import type { RadarActivityItem, RadarItem, RadarReviewItem } from "@/lib/types"
+import type {
+  RadarActivityItem,
+  RadarItem,
+  RadarReviewItem,
+  RadarSuggestionItem,
+} from "@/lib/types"
 
 type RadarView = "progresso" | "no-ar" | "revisoes"
 
@@ -93,7 +100,8 @@ export function RadarPage() {
     ? reviews.data.divergentes.length +
       reviews.data.semProjeto.length +
       reviews.data.fechadas.length +
-      reviews.data.semRegistro.length
+      reviews.data.semRegistro.length +
+      reviews.data.sugestoes.length
     : 0
 
   const refresh = (
@@ -295,6 +303,8 @@ function ReviewRow({
    const patch = usePatchTask()
    const dismiss = useDismissDivergence()
    const dismissActivity = useDismissActivity()
+   const analyze = useAnalyzeAI()
+   const suggestionAction = useSuggestionAction()
    const projects = useProjects()
    const projectNames = (projects.data ?? [])
      .map((project) => project.name)
@@ -312,12 +322,89 @@ function ReviewRow({
      )
    }
 
-   const { divergentes, semProjeto, fechadas, semRegistro } = reviews.data
+   const { divergentes, semProjeto, fechadas, semRegistro, sugestoes } = reviews.data
    const failed = (error: unknown) =>
      toast.error(error instanceof Error ? error.message : "Não deu pra atualizar")
 
    return (
      <div className="flex flex-col gap-rf-4">
+       <Panel
+         title="Sugestões da IA"
+         description="Paráfrases de “concluído” em texto livre — confirme ou ignore."
+         action={
+           <Button
+             type="button"
+             variant="outline"
+             size="sm"
+             disabled={analyze.isPending}
+             onClick={() =>
+               analyze.mutate(undefined, {
+                 onError: failed,
+                 onSuccess: (result) =>
+                   toast.success(
+                     result.suggested
+                       ? `${result.suggested} sugestão(ões) nova(s)`
+                       : "Nada novo para sugerir",
+                   ),
+               })
+             }
+           >
+             <Sparkles aria-hidden /> {analyze.isPending ? "Analisando…" : "Analisar com IA"}
+           </Button>
+         }
+       >
+         {sugestoes.length === 0 ? (
+           <EmptyState
+             mascot="thinking"
+             title="Nada sugerido"
+             description="Rode a análise depois de documentar a semana — a IA cruza registros de progresso com demandas abertas."
+           />
+         ) : (
+           <ul className="flex flex-col">
+             {sugestoes.map((item: RadarSuggestionItem) => (
+               <li
+                 key={item.id}
+                 className="flex min-w-0 flex-wrap items-center gap-rf-3 border-b border-[var(--rf-border)] py-rf-3 last:border-b-0"
+               >
+                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                   <p className="rf-caption text-foreground">{item.taskTitle}</p>
+                   <p className="rf-caption text-muted-foreground">
+                     {item.entryText}
+                     {item.note ? ` · ${item.note}` : ""}
+                     {` · ${Math.round(item.confidence * 100)}%`}
+                   </p>
+                 </div>
+                 <Button
+                   type="button"
+                   variant="outline"
+                   size="sm"
+                   disabled={suggestionAction.isPending}
+                   onClick={() =>
+                     suggestionAction.mutate(
+                       { id: item.id, action: "aceitar" },
+                       { onError: failed, onSuccess: () => toast.success("Demanda concluída ✓") },
+                     )
+                   }
+                 >
+                   <Check aria-hidden /> Concluir
+                 </Button>
+                 <Button
+                   type="button"
+                   variant="ghost"
+                   size="sm"
+                   disabled={suggestionAction.isPending}
+                   onClick={() =>
+                     suggestionAction.mutate({ id: item.id, action: "ignorar" }, { onError: failed })
+                   }
+                 >
+                   Ignorar
+                 </Button>
+               </li>
+             ))}
+           </ul>
+         )}
+       </Panel>
+
        <Panel
          title="Divergências"
          description="Concluídas aqui, mas ainda abertas na CENTRAL — reabra ou mantenha e ajuste a nota depois."

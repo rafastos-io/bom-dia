@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
 export const tasks = sqliteTable("tasks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -120,6 +120,20 @@ export const centralEntries = sqliteTable("central_entries", {
   section: text("section").default(""),
   itemHash: text("item_hash").notNull(),
   subtasks: text("subtasks").default("[]"),
+})
+
+/** Sugestoes da IA (matching de conclusao em texto livre) aguardando revisao. */
+export const radarSuggestions = sqliteTable("radar_suggestions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: integer("task_id").notNull(),
+  path: text("path").default(""),
+  itemHash: text("item_hash").default(""),
+  entryText: text("entry_text").default(""),
+  entryDate: text("entry_date").default(""),
+  confidence: real("confidence").default(0),
+  status: text("status").default("pendente"),
+  createdAt: text("created_at").default(""),
+  updatedAt: text("updated_at").default(""),
 })
 
 /** Vinculo entre uma entrada da CENTRAL e a demanda espelhada no Bom Dia. */

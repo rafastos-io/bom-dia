@@ -179,6 +179,9 @@ export const apiRadar = {
     api<{ ok: boolean; changed: number }>("POST", "/api/radar/revisoes/divergente", { taskId }),
   dismissActivity: (path: string) =>
     api<{ ok: boolean; changed: number }>("POST", "/api/radar/revisoes/atividade", { path }),
+  analyzeAi: () => api<{ analyzed: number; suggested: number }>("POST", "/api/radar/revisoes/ia"),
+  suggestion: (id: number, action: "aceitar" | "ignorar") =>
+    api<{ ok: boolean }>("POST", "/api/radar/revisoes/sugestao", { id, action }),
 }
 
 export const apiOpen = {
