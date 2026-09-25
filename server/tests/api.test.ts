@@ -200,6 +200,70 @@ describe("tasks", () => {
     expect((await list()).find((task) => task.id === id)?.completed_at).toBe("")
   })
 
+  it("salva tags, bloqueios e historico da demanda", async () => {
+    const cookie = await login()
+
+    const blocker = await app.request("/api/tasks", {
+      method: "POST",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({ title: "Dependencia base" }),
+    })
+    const { id: blockerId } = (await blocker.json()) as { id: number }
+
+    const created = await app.request("/api/tasks", {
+      method: "POST",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({
+        title: "Com tags e bloqueio",
+        tags: ["Cliente X", "cliente x", "Urgente"],
+        blocked_by: [blockerId],
+      }),
+    })
+    expect(created.status).toBe(201)
+    const { id } = (await created.json()) as { id: number }
+
+    const list = async () =>
+      (await (await app.request("/api/tasks", { headers: authHeaders(cookie) })).json()) as Array<{
+        id: number
+        tags: string[]
+        blocked_by: number[]
+      }>
+
+    const task = (await list()).find((t) => t.id === id)
+    expect(task?.tags).toEqual(["Cliente X", "Urgente"])
+    expect(task?.blocked_by).toEqual([blockerId])
+
+    await app.request(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: authHeaders(cookie),
+      body: JSON.stringify({ tags: ["Urgente"], status: "andamento" }),
+    })
+    const updated = (await list()).find((t) => t.id === id)
+    expect(updated?.tags).toEqual(["Urgente"])
+    expect(updated?.blocked_by).toEqual([blockerId])
+
+    const events = (await (
+      await app.request(`/api/tasks/${id}/events`, { headers: authHeaders(cookie) })
+    ).json()) as Array<{ kind: string; field: string }>
+    expect(events.some((e) => e.kind === "criada")).toBe(true)
+    expect(events.some((e) => e.field === "tags")).toBe(true)
+    expect(events.some((e) => e.field === "status")).toBe(true)
+
+    const removed = await app.request(`/api/tasks/${blockerId}`, {
+      method: "DELETE",
+      headers: authHeaders(cookie),
+    })
+    expect(removed.status).toBe(200)
+    const afterDelete = (await list()).find((t) => t.id === id)
+    expect(afterDelete).toBeTruthy()
+    expect(afterDelete?.blocked_by).toEqual([])
+  })
+
+  it("historico exige sessao", async () => {
+    const res = await app.request("/api/tasks/1/events")
+    expect(res.status).toBe(401)
+  })
+
   it("tarefa recorrente gera a proxima ocorrencia ao concluir", async () => {
     const cookie = await login()
     const created = await app.request("/api/tasks", {

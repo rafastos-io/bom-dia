@@ -30,7 +30,7 @@ export function RotinaPage() {
       />
 
       <RecurrencePanel />
-      <ViewToolbar />
+      <ViewToolbar exportTasks={list} />
       {failed ? (
         <QueryError
           onRetry={() => {

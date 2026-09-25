@@ -75,7 +75,7 @@ export function HojePage() {
           </span>
         </div>
         )}
-        <ViewToolbar />
+        <ViewToolbar exportTasks={windowed} />
         {failed ? (
           <QueryError
             message="Não consegui carregar as tarefas."

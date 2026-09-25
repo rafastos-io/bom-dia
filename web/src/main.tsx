@@ -6,6 +6,12 @@ import { App } from "./App"
 import { ThemeProvider } from "./components/theme-provider"
 import "./index.css"
 
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js")
+  })
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

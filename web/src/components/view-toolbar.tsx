@@ -1,13 +1,30 @@
+import { Button } from "@rafastos/ui/button"
 import { NativeSelect, NativeSelectOption } from "@rafastos/ui/native-select"
 import { cn } from "cn"
-import { Columns3, LayoutGrid, List, Repeat2, TriangleAlert } from "lucide-react"
+import {
+  Columns3,
+  Download,
+  LayoutGrid,
+  List,
+  Repeat2,
+  Rows3,
+  Rows4,
+  TriangleAlert,
+} from "lucide-react"
 import { useMemo } from "react"
 import { Chip } from "@/components/app/chip"
 import { SearchField } from "@/components/app/search-field"
-import { useProjects } from "@/lib/queries"
-import { useListView, type OrigemFilter } from "./list-view"
-import { PRIO_LABEL, type FilterKey, type SortKey, type ViewKey } from "@/lib/tasks"
-import type { Prioridade } from "@/lib/types"
+import { downloadTasksCsv } from "@/lib/csv"
+import { useProjects, useTasks } from "@/lib/queries"
+import { useListView, type DensityKey, type OrigemFilter } from "./list-view"
+import {
+  PRIO_LABEL,
+  todayISO,
+  type FilterKey,
+  type SortKey,
+  type ViewKey,
+} from "@/lib/tasks"
+import type { Prioridade, Task } from "@/lib/types"
 
 const STATUS_FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "ativas", label: "Ativas" },
@@ -36,15 +53,24 @@ const SORTS: Array<{ key: SortKey; label: string }> = [
   { key: "az", label: "A-Z" },
 ]
 
+const DENSITIES: Array<{ key: DensityKey; label: string; icon: typeof Rows3 }> = [
+  { key: "comfortable", label: "Confortável", icon: Rows3 },
+  { key: "compact", label: "Compacto", icon: Rows4 },
+]
+
 export function ViewToolbar({
   className,
   hideViewToggle,
+  exportTasks,
 }: {
   className?: string
   hideViewToggle?: boolean
+  /** Lista já filtrada/ordenada — habilita o botão de exportar CSV. */
+  exportTasks?: Task[]
 }) {
   const view = useListView()
   const projects = useProjects()
+  const tasks = useTasks()
   const grupos = useMemo(() => {
     const names = new Set<string>()
     for (const project of projects.data ?? []) {
@@ -53,6 +79,13 @@ export function ViewToolbar({
     }
     return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"))
   }, [projects.data])
+  const tags = useMemo(() => {
+    const names = new Set<string>()
+    for (const task of tasks.data ?? []) {
+      for (const tag of task.tags ?? []) names.add(tag)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"))
+  }, [tasks.data])
 
   return (
     <div className={cn("flex flex-col gap-rf-3", className)}>
@@ -87,34 +120,61 @@ export function ViewToolbar({
           ))}
         </div>
 
-        <div
-          id="viewToggle"
-          className={cn(
-            "ml-auto items-center gap-1 rounded-full bg-[var(--rf-hover)] p-1",
-            view.view === "kanban" && "pointer-events-none opacity-40",
-            hideViewToggle ? "hidden" : "inline-flex",
-          )}
-          role="group"
-          aria-label="Modo de visualização"
-        >
-          {VIEWS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              aria-label={item.label}
-              aria-pressed={view.view === item.key}
-              title={item.label}
-              onClick={() => view.setView(item.key)}
-              className={cn(
-                "inline-flex size-7 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                view.view === item.key
-                  ? "app-pill-active"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <item.icon className="size-3.5" aria-hidden />
-            </button>
-          ))}
+        <div className="ml-auto flex items-center gap-1.5">
+          <div
+            role="group"
+            aria-label="Densidade dos cartões"
+            className="inline-flex items-center gap-1 rounded-full bg-[var(--rf-hover)] p-1"
+          >
+            {DENSITIES.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-label={item.label}
+                aria-pressed={view.density === item.key}
+                title={`Densidade: ${item.label.toLowerCase()}`}
+                onClick={() => view.setDensity(item.key)}
+                className={cn(
+                  "inline-flex size-7 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  view.density === item.key
+                    ? "app-pill-active"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <item.icon className="size-3.5" aria-hidden />
+              </button>
+            ))}
+          </div>
+
+          <div
+            id="viewToggle"
+            className={cn(
+              "items-center gap-1 rounded-full bg-[var(--rf-hover)] p-1",
+              view.view === "kanban" && "pointer-events-none opacity-40",
+              hideViewToggle ? "hidden" : "inline-flex",
+            )}
+            role="group"
+            aria-label="Modo de visualização"
+          >
+            {VIEWS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-label={item.label}
+                aria-pressed={view.view === item.key}
+                title={item.label}
+                onClick={() => view.setView(item.key)}
+                className={cn(
+                  "inline-flex size-7 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  view.view === item.key
+                    ? "app-pill-active"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <item.icon className="size-3.5" aria-hidden />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -171,6 +231,23 @@ export function ViewToolbar({
           </NativeSelect>
         ) : null}
 
+        {tags.length ? (
+          <NativeSelect
+            size="sm"
+            className="w-40 shrink-0"
+            aria-label="Filtrar por etiqueta"
+            value={view.tag}
+            onChange={(event) => view.setTag(event.target.value)}
+          >
+            <NativeSelectOption value="todas">Todas as tags</NativeSelectOption>
+            {tags.map((tag) => (
+              <NativeSelectOption key={tag} value={tag}>
+                {tag}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        ) : null}
+
         <NativeSelect
           size="sm"
           className="ml-auto w-44 shrink-0"
@@ -191,6 +268,25 @@ export function ViewToolbar({
           placeholder="Buscar..."
           className="w-full min-w-40 flex-1 sm:max-w-64"
         />
+
+        {exportTasks ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            title={`Exportar ${exportTasks.length} ite${exportTasks.length === 1 ? "m" : "ns"} da visão atual em CSV`}
+            onClick={() =>
+              downloadTasksCsv(
+                exportTasks,
+                tasks.data ?? exportTasks,
+                `bomdia-${view.area}-${todayISO()}.csv`,
+              )
+            }
+          >
+            <Download aria-hidden /> CSV
+          </Button>
+        ) : null}
       </div>
     </div>
   )

@@ -7,8 +7,9 @@ import { toast } from "sonner"
 import { Dot, toneFromKey } from "@/components/app/dot"
 import { Segmented } from "@/components/app/segmented"
 import { useConfirm } from "@/components/app/confirm"
+import { useListView } from "@/components/list-view"
 import { useOverlays } from "@/components/overlay-provider"
-import { StatusSelect } from "@/components/task-items"
+import { BlockedBadge, StatusSelect } from "@/components/task-items"
 import { openLink } from "@/lib/open"
 import { useBulkDeleteTasks, useBulkTaskAction } from "@/lib/queries"
 import { fmtDate, isLate, substaskProgress } from "@/lib/tasks"
@@ -27,6 +28,9 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
   const { confirm } = useConfirm()
   const bulk = useBulkTaskAction()
   const bulkDelete = useBulkDeleteTasks()
+  const { density } = useListView()
+  const compact = density === "compact"
+  const cellY = compact ? "py-rf-2" : "py-rf-3"
   const [window, setWindow] = useState<DayWindow>("hoje")
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -217,7 +221,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                   >
                     <td
                       className={cn(
-                        "app-card rounded-l-[var(--rf-radius-card)] py-rf-3 pl-rf-2",
+                        "app-card rounded-l-[var(--rf-radius-card)] pl-rf-2",
+                        cellY,
                         isSelected && "bg-[var(--app-ai-soft)]/40",
                       )}
                       onClick={(event) => event.stopPropagation()}
@@ -230,7 +235,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                     </td>
                     <td
                       className={cn(
-                        "app-card py-rf-3 pr-rf-3",
+                        "app-card pr-rf-3",
+                        cellY,
                         isSelected && "bg-[var(--app-ai-soft)]/40",
                       )}
                     >
@@ -252,6 +258,12 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                         >
                           {task.title}
                         </span>
+                        {task.tags?.length ? (
+                          <span className="hidden max-w-48 shrink-0 truncate font-mono text-[10px] text-muted-foreground min-[900px]:inline">
+                            {task.tags.map((tag) => `#${tag}`).join(" ")}
+                          </span>
+                        ) : null}
+                        <BlockedBadge task={task} />
                         {task.central ? (
                           <button
                             type="button"
@@ -269,7 +281,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                     </td>
                     <td
                       className={cn(
-                        "app-card py-rf-3 pr-rf-3",
+                        "app-card pr-rf-3",
+                        cellY,
                         isSelected && "bg-[var(--app-ai-soft)]/40",
                       )}
                     >
@@ -279,7 +292,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                     </td>
                     <td
                       className={cn(
-                        "app-card py-rf-3 pr-rf-3",
+                        "app-card pr-rf-3",
+                        cellY,
                         isSelected && "bg-[var(--app-ai-soft)]/40",
                       )}
                     >
@@ -295,7 +309,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                     </td>
                     <td
                       className={cn(
-                        "app-card py-rf-3 pr-rf-3",
+                        "app-card pr-rf-3",
+                        cellY,
                         isSelected && "bg-[var(--app-ai-soft)]/40",
                       )}
                     >
@@ -327,7 +342,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                     </td>
                     <td
                       className={cn(
-                        "app-card rounded-r-[var(--rf-radius-card)] py-rf-2 pr-rf-3",
+                        "app-card rounded-r-[var(--rf-radius-card)] pr-rf-3",
+                        compact ? "py-rf-1.5" : "py-rf-2",
                         isSelected && "bg-[var(--app-ai-soft)]/40",
                       )}
                       onClick={(event) => event.stopPropagation()}

@@ -30,6 +30,7 @@ export const qk = {
   aiStatus: ["ai-status"] as const,
   radar: ["radar"] as const,
   reviews: ["radar-revisoes"] as const,
+  events: (taskId: number) => ["task-events", taskId] as const,
   notes: (projectId: number) => ["notes", projectId] as const,
   attachments: (ownerType: string, ownerId: number) =>
     ["attachments", ownerType, ownerId] as const,
@@ -41,11 +42,22 @@ function useRefreshData() {
     void qc.invalidateQueries({ queryKey: qk.tasks })
     void qc.invalidateQueries({ queryKey: qk.projects })
     void qc.invalidateQueries({ queryKey: qk.reviews })
+    void qc.invalidateQueries({ queryKey: ["task-events"] })
   }
 }
 
 export function useTasks() {
   return useQuery({ queryKey: qk.tasks, queryFn: apiTasks.list })
+}
+
+/** Histórico/atividade da demanda (só busca quando há id). */
+export function useTaskEvents(taskId: number | null) {
+  return useQuery({
+    queryKey: qk.events(taskId ?? 0),
+    queryFn: () => apiTasks.events(taskId ?? 0),
+    enabled: (taskId ?? 0) > 0,
+    staleTime: 0,
+  })
 }
 
 /** Ações em lote (concluir/reabrir/prioridade) sobre a seleção da tabela. */

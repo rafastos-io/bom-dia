@@ -149,6 +149,25 @@ CREATE TABLE IF NOT EXISTS radar_suggestions (
   UNIQUE (item_hash, task_id)
 );
 CREATE INDEX IF NOT EXISTS idx_radar_suggestions_status ON radar_suggestions(status);
+CREATE TABLE IF NOT EXISTS task_deps (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id       INTEGER NOT NULL,
+  blocked_by_id INTEGER NOT NULL,
+  created_at    TEXT DEFAULT '',
+  UNIQUE (task_id, blocked_by_id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_deps_task ON task_deps(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_deps_blocker ON task_deps(blocked_by_id);
+CREATE TABLE IF NOT EXISTS task_events (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL,
+  kind       TEXT NOT NULL,
+  field      TEXT DEFAULT '',
+  from_value TEXT DEFAULT '',
+  to_value   TEXT DEFAULT '',
+  created_at TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, id);
 `
 
 /** Colunas adicionadas depois da v3.0 (migracoes idempotentes). */
@@ -164,6 +183,7 @@ export const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: stri
   { table: "central_notes", column: "activity_detail", ddl: "activity_detail TEXT DEFAULT ''" },
   { table: "central_notes", column: "activity_ack", ddl: "activity_ack TEXT DEFAULT ''" },
   { table: "central_entries", column: "subtasks", ddl: "subtasks TEXT DEFAULT '[]'" },
+  { table: "tasks", column: "tags", ddl: "tags TEXT DEFAULT '[]'" },
 ]
 
 /** Indices que dependem de colunas adicionadas depois da v3.0. */

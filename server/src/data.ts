@@ -18,6 +18,19 @@ export type TaskRow = {
   projeto: string | null
   recorrencia: string | null
   feito_em: string | null
+  completed_at?: string | null
+  estimate_min?: number | null
+  tags?: string | null
+}
+
+export type TaskEventRow = {
+  id: number
+  task_id: number
+  kind: string
+  field: string
+  from_value: string
+  to_value: string
+  created_at: string
 }
 
 export type LinkRow = { id: number; task_id: number; kind: string; label: string | null; target: string }
@@ -36,14 +49,122 @@ function str(value: unknown): string {
   return String(value ?? "").trim()
 }
 
+/** Tags normalizadas (minusculas deduplicam, texto original preservado). */
+export function cleanTags(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : [value]
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of list) {
+    const tag = str(item).slice(0, 40)
+    if (!tag) continue
+    const key = tag.toLocaleLowerCase("pt-BR")
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(tag)
+    if (out.length >= 12) break
+  }
+  return out
+}
+
+export function parseTags(value: unknown): string[] {
+  if (Array.isArray(value)) return cleanTags(value)
+  const raw = str(value)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed)) return cleanTags(parsed)
+  } catch {
+    /* texto solto: separa por virgula */
+  }
+  return cleanTags(raw.split(","))
+}
+
 export function taskToDict(row: TaskRow, links: LinkRow[], subtasks: SubtaskRow[]) {
   const rec = row.recorrencia || ""
+  const { tags: rawTags, ...rest } = row
   return {
-    ...row,
+    ...rest,
+    tags: parseTags(rawTags),
     links,
     subtasks,
     feita: Boolean(rec) && (row.feito_em || "") === periodoAtual(rec),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Historico/atividade e dependencias ("bloqueada por")
+// ---------------------------------------------------------------------------
+
+/** Campos cujas mudancas viram evento no historico da demanda. */
+const EVENT_FIELDS = [
+  "title",
+  "status",
+  "priority",
+  "due_date",
+  "projeto",
+  "tipo",
+  "recorrencia",
+  "estimate_min",
+  "tags",
+] as const
+
+function eventValue(field: string, row: Record<string, unknown>): string {
+  const value = row[field]
+  if (field === "tags") return parseTags(value).join(", ")
+  if (field === "estimate_min") return String(Number(value) || 0)
+  return str(value)
+}
+
+async function logEvent(
+  db: Database,
+  taskId: number,
+  kind: string,
+  field: string,
+  from: string,
+  to: string,
+): Promise<void> {
+  await db.run(
+    sql`INSERT INTO task_events (task_id, kind, field, from_value, to_value, created_at)
+        VALUES (${taskId}, ${kind}, ${field}, ${from}, ${to}, ${nowIso()})`,
+  )
+  // Poda: guarda as 200 ultimas entradas por demanda.
+  await db.run(
+    sql`DELETE FROM task_events WHERE task_id = ${taskId} AND id NOT IN (
+          SELECT id FROM task_events WHERE task_id = ${taskId} ORDER BY id DESC LIMIT 200
+        )`,
+  )
+}
+
+async function replaceDeps(db: Database, taskId: number, items: unknown): Promise<void> {
+  await db.run(sql`DELETE FROM task_deps WHERE task_id = ${taskId}`)
+  const list = Array.isArray(items) ? items : []
+  const seen = new Set<number>()
+  for (const item of list) {
+    const id = Number(item)
+    if (!Number.isInteger(id) || id <= 0 || id === taskId || seen.has(id)) continue
+    const exists = await db.get(sql`SELECT 1 AS ok FROM tasks WHERE id = ${id}`)
+    if (!exists) continue
+    seen.add(id)
+    await db.run(
+      sql`INSERT INTO task_deps (task_id, blocked_by_id, created_at) VALUES (${taskId}, ${id}, ${nowIso()})`,
+    )
+    if (seen.size >= 20) break
+  }
+}
+
+async function depTitles(db: Database, taskId: number): Promise<string> {
+  const rows = await db.all<{ title: string }>(
+    sql`SELECT t.title FROM task_deps d JOIN tasks t ON t.id = d.blocked_by_id
+        WHERE d.task_id = ${taskId} ORDER BY d.id`,
+  )
+  return rows.map((row) => str(row.title)).join(", ")
+}
+
+export async function listTaskEvents(db: Database, taskId: number): Promise<TaskEventRow[]> {
+  return db.all<TaskEventRow>(
+    sql`SELECT id, task_id, kind, field, from_value, to_value, created_at
+        FROM task_events WHERE task_id = ${taskId} ORDER BY id DESC LIMIT 50`,
+  )
 }
 
 export async function listTasks(db: Database) {
@@ -83,6 +204,9 @@ export async function listTasks(db: Database) {
     LEFT JOIN central_notes n ON n.path = l.note_path
     ORDER BY l.id
   `)
+  const depRows = await db.all<{ task_id: number; blocked_by_id: number }>(
+    sql`SELECT task_id, blocked_by_id FROM task_deps ORDER BY id`,
+  )
 
   const linksByTask = new Map<number, LinkRow[]>()
   for (const link of allLinks) {
@@ -115,6 +239,13 @@ export async function listTasks(db: Database) {
     }
   }
 
+  const depsByTask = new Map<number, number[]>()
+  for (const row of depRows) {
+    const list = depsByTask.get(Number(row.task_id)) ?? []
+    list.push(Number(row.blocked_by_id))
+    depsByTask.set(Number(row.task_id), list)
+  }
+
   const ideasByIdea = new Map<number, IdeaLinkRow[]>()
   for (const row of ideaRows) {
     const item: IdeaLinkRow = {
@@ -142,6 +273,7 @@ export async function listTasks(db: Database) {
     idea_links: (task.tipo || "") === "ideia" ? (ideasByIdea.get(Number(task.id)) ?? []) : [],
     attach_count: countByTask.get(Number(task.id)) ?? 0,
     central: centralByTask.get(Number(task.id)) ?? null,
+    blocked_by: depsByTask.get(Number(task.id)) ?? [],
   }))
 }
 
@@ -219,13 +351,13 @@ export async function createTask(db: Database, data: Record<string, unknown>): P
   const status = str(data.status) || "aberta"
   const result = await db.run(
     sql`INSERT INTO tasks (title, requested_by, send_to, due_date, priority, description, status,
-                          created_at, tipo, projeto, recorrencia, feito_em, completed_at, estimate_min)
+                          created_at, tipo, projeto, recorrencia, feito_em, completed_at, estimate_min, tags)
         VALUES (${str(data.title) || "Sem titulo"}, ${str(data.requested_by)}, ${str(data.send_to)},
                 ${str(data.due_date)}, ${str(data.priority) || "media"}, ${str(data.description)},
                 ${status}, ${nowIso()}, ${tipo}, ${projeto}, ${recorrencia},
                 ${data.feita && recorrencia ? periodoAtual(recorrencia) : ""},
                 ${status === "concluida" ? nowIso() : ""},
-                ${Number(data.estimate_min) || 0})`,
+                ${Number(data.estimate_min) || 0}, ${JSON.stringify(cleanTags(data.tags))})`,
   )
   const taskId = Number(result.lastInsertRowid)
   await insertLinks(db, taskId, (data.links as unknown[]) ?? [])
@@ -233,7 +365,11 @@ export async function createTask(db: Database, data: Record<string, unknown>): P
   if (tipo === "ideia") {
     await replaceIdeaLinks(db, taskId, (data.idea_links as unknown[]) ?? [])
   }
+  if ("blocked_by" in data) {
+    await replaceDeps(db, taskId, data.blocked_by)
+  }
   await ensureProject(db, projeto)
+  await logEvent(db, taskId, "criada", "", "", "")
   return taskId
 }
 
@@ -258,11 +394,7 @@ export async function updateTask(
   taskId: number,
   data: Record<string, unknown>,
 ): Promise<void> {
-  const current = await db.get<{
-    tipo: string | null
-    recorrencia: string | null
-    status: string | null
-  }>(sql`SELECT tipo, recorrencia, status FROM tasks WHERE id = ${taskId}`)
+  const current = await db.get<TaskRow>(sql`SELECT * FROM tasks WHERE id = ${taskId}`)
 
   const sets: SQL[] = []
   for (const field of TASK_FIELDS) {
@@ -270,6 +402,9 @@ export async function updateTask(
   }
   if ("estimate_min" in data) {
     sets.push(sql`estimate_min = ${Number(data.estimate_min) || 0}`)
+  }
+  if ("tags" in data) {
+    sets.push(sql`tags = ${JSON.stringify(cleanTags(data.tags))}`)
   }
   if ("recorrencia" in data || "tipo" in data) {
     if (current) {
@@ -299,6 +434,20 @@ export async function updateTask(
   }
   if (sets.length) {
     await db.run(sql`UPDATE tasks SET ${sql.join(sets, sql`, `)} WHERE id = ${taskId}`)
+    const after = await db.get<TaskRow>(sql`SELECT * FROM tasks WHERE id = ${taskId}`)
+    if (current && after) {
+      for (const field of EVENT_FIELDS) {
+        const before = eventValue(field, current as unknown as Record<string, unknown>)
+        const now = eventValue(field, after as unknown as Record<string, unknown>)
+        if (before !== now) await logEvent(db, taskId, "alterou", field, before, now)
+      }
+    }
+  }
+  if ("blocked_by" in data) {
+    const before = await depTitles(db, taskId)
+    await replaceDeps(db, taskId, data.blocked_by)
+    const after = await depTitles(db, taskId)
+    if (before !== after) await logEvent(db, taskId, "alterou", "blocked_by", before, after)
   }
   if ("links" in data) {
     await db.run(sql`DELETE FROM links WHERE task_id = ${taskId}`)
@@ -347,9 +496,9 @@ async function spawnNextOccurrence(
   const nextDue = advanceDate(str(row?.due_date), recorrencia)
   const result = await db.run(
     sql`INSERT INTO tasks (title, requested_by, send_to, due_date, priority, description, status,
-                           created_at, tipo, projeto, recorrencia, feito_em, completed_at, estimate_min)
+                           created_at, tipo, projeto, recorrencia, feito_em, completed_at, estimate_min, tags)
         SELECT title, requested_by, send_to, ${nextDue}, priority, description, 'aberta',
-               ${nowIso()}, tipo, projeto, recorrencia, '', '', estimate_min
+               ${nowIso()}, tipo, projeto, recorrencia, '', '', estimate_min, tags
         FROM tasks WHERE id = ${taskId}`,
   )
   const newId = Number(result.lastInsertRowid)
@@ -395,6 +544,8 @@ export async function deleteTask(db: Database, taskId: number): Promise<void> {
   await db.run(
     sql`DELETE FROM idea_links WHERE target_type IN ('rotina','tarefa') AND target_id = ${taskId}`,
   )
+  await db.run(sql`DELETE FROM task_deps WHERE task_id = ${taskId} OR blocked_by_id = ${taskId}`)
+  await db.run(sql`DELETE FROM task_events WHERE task_id = ${taskId}`)
   await db.run(sql`DELETE FROM tasks WHERE id = ${taskId}`)
 }
 

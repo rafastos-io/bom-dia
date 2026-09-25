@@ -598,7 +598,7 @@ function ProjectCentral({
         </Panel>
       ) : (
         <div className="flex flex-col gap-rf-4">
-          <ViewToolbar />
+            <ViewToolbar exportTasks={list} />
           <TaskBoard
             tasks={list}
             view={view.view}

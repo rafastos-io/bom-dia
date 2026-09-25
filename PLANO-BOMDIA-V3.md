@@ -128,7 +128,7 @@ hash do conteúdo extraído) e `GET /api/radar` (sessão). Tabelas derivadas `ce
 - [x] Fluxos exercitados via Playwright (login, áreas, tabela, popups, Poohzera com IA mockada)
 - [x] **Pacote de capturas em `artifacts/screens-v3/` (+ `.zip`)**: desktop claro, dark, mobile
       e popups (30 PNGs)
-- [ ] **Aguardando aprovação de Rafael** para o cutover (F8)
+- [x] **Aprovação de Rafael** para o cutover (F8, 18/09)
 
 ### F8 — Cutover e limpeza ✅ concluída (18–19/09)
 - [x] Import no Turso 1:1 e sem órfãos (dados congelados desde então)
@@ -193,8 +193,8 @@ chat: uso em memória, rotação recomendada ao fim. Backup: PITR do Turso + exp
       (`index-1D1WFuFd.js`), `/api/tasks` 401 sem sessão
 - [x] Docs/CENTRAL atualizados
 
-**Extras da fila (não bloqueiam):** export CSV, tamanho de card/densidade, PWA, tags,
-dependências ("bloqueada por"), histórico/atividade da tarefa.
+**Extras da fila** ✅ **concluídos (25/09/2026):** export CSV, tamanho de card/densidade, PWA,
+tags, dependências ("bloqueada por") e histórico/atividade da tarefa — ver o registro abaixo.
 
 ## Registro de fases concluídas- **F0 — Fundação (17/09/2026)** · Criados: `opencode.json`, `PLANO-BOMDIA-V3.md`,
   `package.json` raiz, `server/` (Hono + TS + ESLint + Vitest, rota `/health`),
@@ -303,4 +303,18 @@ dependências ("bloqueada por"), histórico/atividade da tarefa.
   “TLS error: no valid native root CA certificates found” — corrigido com `ca-certificates` no
   estágio runtime (`a49bcd7`). Pendência real achada no log do container: **`AUTH_SECRET` não está
   definido no Coolify** (sessões caem a cada restart e usam o segredo padrão do código) —
-  cadastrar uma string aleatória de 32+ bytes e reiniciar.
+  cadastrar uma string aleatória de 32+ bytes e reiniciar. *(Resolvido em 21/09 — ver o registro
+  do radar no `PLANO-RADAR-CENTRAL.md`.)*
+- **Extras da fila — tags, dependências, histórico, densidade, CSV e PWA (25/09/2026)** · Fila de
+  extras fechada: **tags** livres por demanda (editor no diálogo, chips nos cards/linhas/tabela e
+  filtro por etiqueta na toolbar), **"bloqueada por"** (tabela `task_deps`, selo "Bloqueada" que
+  some quando o bloqueador conclui, seletor no diálogo), **histórico/atividade** (`task_events`
+  com criação e mudanças de título/status/prioridade/prazo/projeto/tipo/recorrência/estimativa/
+  tags/bloqueios, painel no diálogo), **densidade** confortável/compacta por área (persistida nas
+  visões salvas), **export CSV** da visão filtrada (separador `;` com BOM, na toolbar de cada área)
+  e **PWA** (manifest, ícones 180/192/512, service worker com shell offline e cache dos assets com
+  hash, sem tocar em `/api`, `/login` ou `/health`). Migração idempotente: coluna `tasks.tags` +
+  tabelas `task_deps`/`task_events`; eventos podados em 200 por demanda. Verificações: `typecheck`,
+  `lint` e `build` verdes no web e no server; **62/62 testes** do server (+3) e smoke Playwright
+  com **19/19** contra um banco libSQL local (tags, bloqueio, histórico, densidade, download do
+  CSV e console limpo). Publicado em `_______` (deploy `finished` — ver a nota da CENTRAL).

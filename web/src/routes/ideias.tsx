@@ -98,7 +98,7 @@ export function IdeiasPage() {
         </div>
       </Panel>
 
-      <ViewToolbar hideViewToggle />
+      <ViewToolbar hideViewToggle exportTasks={list} />
       {failed ? (
         <QueryError
           onRetry={() => {

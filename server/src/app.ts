@@ -38,6 +38,7 @@ import {
   listNotes,
   listProjectNames,
   listProjects,
+  listTaskEvents,
   listTasks,
   publicAttachment,
   setRoutineDone,
@@ -192,6 +193,11 @@ export function createApp(db: Database, options: { aiAsk?: AiAsk } = {}): Hono {
 
   // ---------------------------------------------------------------- tasks ---
   app.get("/api/tasks", async (c) => c.json(await listTasks(db)))
+
+  // Historico/atividade da demanda (tags, dependencias e mudancas de campo).
+  app.get("/api/tasks/:id/events", async (c) =>
+    c.json(await listTaskEvents(db, Number(c.req.param("id")))),
+  )
 
   app.post("/api/tasks", async (c) => {
     const id = await createTask(db, await readJson(c))

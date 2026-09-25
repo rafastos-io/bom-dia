@@ -7,17 +7,20 @@ import {
   Folder,
   Link as LinkIcon,
   ListChecks,
+  Lock,
   MessageCircle,
   Paperclip,
   Repeat2,
+  Tag as TagIcon,
 } from "lucide-react"
 import { motion } from "motion/react"
 import { useMemo, useRef, useState } from "react"
 import { Dot, type DotTone } from "@/components/app/dot"
+import { useListView } from "@/components/list-view"
 import { useOverlays } from "@/components/overlay-provider"
 import { openLink } from "@/lib/open"
 import { PRIO_COLOR } from "@/lib/prio"
-import { useSetTaskStatus, useToggleFeito } from "@/lib/queries"
+import { useSetTaskStatus, useTasks, useToggleFeito } from "@/lib/queries"
 import {
   fmtDate,
   isLate,
@@ -52,13 +55,16 @@ function Tag({
   children,
   color,
   className,
+  title,
 }: {
   children: React.ReactNode
   color?: string
   className?: string
+  title?: string
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] leading-none",
         className,
@@ -75,6 +81,29 @@ function Tag({
   )
 }
 
+/** Selo de bloqueio: mostra quantas dependências ainda não terminaram. */
+export function BlockedBadge({ task }: { task: Task }) {
+  const tasks = useTasks()
+  const blockers = (task.blocked_by ?? [])
+    .map((id) => tasks.data?.find((item) => item.id === id))
+    .filter((item): item is Task => Boolean(item))
+  const pending = blockers.filter((item) => (item.status || "aberta") !== "concluida")
+  if (!pending.length) return null
+  const titles = pending.map((item) => item.title).join(", ")
+  return (
+    <Tag
+      color="var(--rf-error)"
+      className="max-w-full"
+      title={`Bloqueada por: ${titles}`}
+    >
+      <Lock className="size-3 shrink-0" aria-hidden />
+      <span className="truncate">
+        {pending.length === 1 ? "Bloqueada" : `Bloqueada (${pending.length})`}
+      </span>
+    </Tag>
+  )
+}
+
 export function MetaTags({
   task,
   hideProjeto,
@@ -83,6 +112,7 @@ export function MetaTags({
   hideProjeto?: boolean
 }) {
   const late = isLate(task)
+  const tags = task.tags ?? []
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <Tag color={PRIO_COLOR[task.priority]}>{PRIO_LABEL[task.priority]}</Tag>
@@ -99,6 +129,18 @@ export function MetaTags({
           <Folder className="size-3" aria-hidden /> {task.projeto}
         </Tag>
       ) : null}
+      {tags.slice(0, 3).map((tag) => (
+        <Tag key={tag} className="max-w-40 text-muted-foreground" title={tag}>
+          <TagIcon className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{tag}</span>
+        </Tag>
+      ))}
+      {tags.length > 3 ? (
+        <Tag className="text-muted-foreground" title={tags.slice(3).join(", ")}>
+          +{tags.length - 3}
+        </Tag>
+      ) : null}
+      <BlockedBadge task={task} />
       {task.due_date ? (
         <Tag color={late ? "var(--rf-error)" : undefined} className={late ? undefined : "text-muted-foreground"}>
           <CalendarDays className="size-3" aria-hidden />
@@ -283,6 +325,8 @@ export function TaskCard({
   const overlays = useOverlays()
   const dragged = useRef(false)
   const done = task.status === "concluida"
+  const { density } = useListView()
+  const compact = density === "compact"
 
   const open = () => {
     if (dragged.current) return
@@ -319,10 +363,12 @@ export function TaskCard({
       <MetaTags task={task} hideProjeto={hideProjeto} />
       <IdeaChips links={task.idea_links ?? []} />
       {task.description ? (
-        <p className="line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
+        <p className={cn("text-xs text-muted-foreground", compact ? "line-clamp-1" : "line-clamp-2")}>
+          {task.description}
+        </p>
       ) : null}
       <SubtaskProgressBar task={task} />
-      <LinksChips links={task.links} />
+      {compact ? null : <LinksChips links={task.links} />}
 
       <div className={cn("flex items-center gap-2", done && "opacity-80")}>
         <RoutineCheck task={task} />
@@ -346,7 +392,8 @@ export function TaskCard({
   )
 
   const className = cn(
-    "app-card flex cursor-pointer flex-col gap-2.5 p-4 transition-shadow",
+    "app-card flex cursor-pointer flex-col transition-shadow",
+    compact ? "gap-1.5 p-3" : "gap-2.5 p-4",
     "hover:shadow-elevated",
     done && "opacity-75",
   )
@@ -421,11 +468,14 @@ export function TaskRow({ task }: { task: Task }) {
   const done = task.status === "concluida"
   const { done: subsDone, total } = substaskProgress(task.subtasks)
   const late = isLate(task)
+  const { density } = useListView()
+  const compact = density === "compact"
 
   return (
     <div
       className={cn(
-        "app-card flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2",
+        "app-card flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3",
+        compact ? "py-1.5" : "py-2",
         done && "opacity-70",
       )}
     >
@@ -445,7 +495,18 @@ export function TaskRow({ task }: { task: Task }) {
           </span>
         ) : null}
       </button>
-      <span className="hidden min-w-0 basis-40 truncate text-xs text-muted-foreground sm:block">
+      <BlockedBadge task={task} />
+      {task.tags?.length ? (
+        <span className="hidden max-w-40 truncate font-mono text-[10px] text-muted-foreground min-[700px]:block">
+          {(task.tags ?? []).map((tag) => `#${tag}`).join(" ")}
+        </span>
+      ) : null}
+      <span
+        className={cn(
+          "min-w-0 basis-40 truncate text-xs text-muted-foreground",
+          compact ? "hidden" : "hidden sm:block",
+        )}
+      >
         {[task.requested_by && `de ${task.requested_by}`, task.send_to && `→ ${task.send_to}`]
           .filter(Boolean)
           .join("  ")}

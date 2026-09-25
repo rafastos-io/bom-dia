@@ -128,6 +128,8 @@ export type FilterOptions = {
   grupo: string
   /** nome do projeto (minúsculo) -> grupo. */
   groups: Map<string, string>
+  /** Etiqueta da demanda ("todas" = sem filtro). */
+  tag: string
 }
 
 export function matchesFilters(
@@ -159,8 +161,13 @@ export function matchesFilters(
     const projeto = (task.projeto || "").trim().toLowerCase()
     if (!projeto || (opts.groups.get(projeto) ?? "") !== opts.grupo) return false
   }
+  if (opts.tag !== "todas") {
+    const wanted = opts.tag.toLowerCase()
+    if (!(task.tags ?? []).some((tag) => tag.toLowerCase() === wanted)) return false
+  }
   if (opts.search) {
-    const hay = `${task.title} ${task.requested_by} ${task.send_to} ${task.description}`.toLowerCase()
+    const hay =
+      `${task.title} ${task.requested_by} ${task.send_to} ${task.description} ${(task.tags ?? []).join(" ")}`.toLowerCase()
     if (!hay.includes(opts.search.toLowerCase())) return false
   }
   return true

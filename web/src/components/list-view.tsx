@@ -16,6 +16,7 @@ const LEGACY_VIEW_KEY = "bomdia_view"
 type AreaKey = "hoje" | "agenda" | "rotina" | "ideias" | "projetos"
 
 export type OrigemFilter = "todas" | "central" | "manuais"
+export type DensityKey = "comfortable" | "compact"
 
 type PersistedView = {
   filter: FilterKey
@@ -25,6 +26,8 @@ type PersistedView = {
   recurringOnly: boolean
   origem: OrigemFilter
   grupo: string
+  tag: string
+  density: DensityKey
   view: ViewKey
 }
 
@@ -36,6 +39,8 @@ const DEFAULTS: PersistedView = {
   recurringOnly: false,
   origem: "todas",
   grupo: "todos",
+  tag: "todas",
+  density: "comfortable",
   view: "cards",
 }
 
@@ -47,6 +52,8 @@ type ListViewContextValue = PersistedView & {
   setRecurringOnly: (value: boolean) => void
   setOrigem: (value: OrigemFilter) => void
   setGrupo: (value: string) => void
+  setTag: (value: string) => void
+  setDensity: (value: DensityKey) => void
   setSearch: (value: string) => void
   setView: (value: ViewKey) => void
   search: string
@@ -134,6 +141,10 @@ export function ListViewProvider({ children }: { children: ReactNode }) {
       setOrigem: (value: OrigemFilter) => patch({ origem: value }),
       grupo: current.grupo,
       setGrupo: (value: string) => patch({ grupo: value }),
+      tag: current.tag,
+      setTag: (value: string) => patch({ tag: value }),
+      density: current.density,
+      setDensity: (value: DensityKey) => patch({ density: value }),
       view: current.view,
       setView: (value: ViewKey) => patch({ view: value }),
       search,

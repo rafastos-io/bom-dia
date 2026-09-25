@@ -7,6 +7,7 @@ import type {
   RadarDigest,
   RadarReviews,
   Task,
+  TaskEvent,
   TaskPayload,
   WhatsappPayload,
   WhatsappResult,
@@ -67,6 +68,7 @@ export const apiTasks = {
   remove: (id: number) => api<void>("DELETE", `/api/tasks/${id}`),
   setFeito: (id: number, done: boolean) =>
     api<Task>("POST", `/api/tasks/${id}/feito`, { done }),
+  events: (id: number) => api<TaskEvent[]>("GET", `/api/tasks/${id}/events`),
 }
 
 export const apiSubtasks = {

@@ -122,8 +122,9 @@ GET /api/radar                  (sessão do app)
 
 ## Fases
 
-### R0 — Aprovação e token (sem código)
-- [ ] Rafael confirma as 5 decisões (D1–D5) e cadastra `SERVICE_TOKEN` no Coolify (runtime only).
+### R0 — Aprovação e token (sem código) ✅ (21/09)
+- [x] Rafael confirma as 5 decisões (D1–D5) e cadastra `SERVICE_TOKEN` no Coolify (runtime only) —
+      aplicado em 21/09 junto com `AUTH_SECRET` (ver R4).
 
 ### R1 — Servidor (uma sessão) ✅ concluída (21/09)
 - [x] Migração idempotente: `central_notes` + `central_entries` (+ índices por `date` e `kind`)
@@ -144,7 +145,8 @@ Publicado em `dd670da` (21/09/2026): deploy `finished`, `/health` ok, `POST /api
 - [x] `backfill` (reenvio forçado), `once` (deltas) e `watch` (tempo real) como comandos
 - [x] Revarredura periódica (15 min) e `deleted` para notas removidas/renomeadas
 - [x] `run-forever.cmd` + instruções `schtasks` no `agent/README.md`; `.env.example` próprio
-- [ ] Ativar a tarefa agendada no Windows (depende do `SERVICE_TOKEN` no Coolify — Rafael)
+- [x] Agente rodando no Windows (wrapper destacado + atalho na Startup; ver R4) — `schtasks`
+      exigia elevação, então a inicialização ficou pela pasta Startup
 
 Publicado em `7844f44` (21/09/2026). Verificação real: `summary` no vault → **287 arquivos,
 1.472 entradas** (1.123 progresso, 187 aberto, 96 próxima ação, 66 decisão); ponta a ponta contra
@@ -282,7 +284,8 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   rodada analisou 20 registros e gerou 1 sugestão (90%).
 
 ### Fase opcional (depois)
-- [ ] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`).
+- [x] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`) — **entregues na F4**
+      (último commit dos `caminho_local`, painel "Atividade sem registro").
 
 ## Riscos e mitigações
 

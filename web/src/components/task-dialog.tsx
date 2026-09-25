@@ -23,10 +23,13 @@ import {
   Copy,
   Folder,
   GripVertical,
+  History,
   Link as LinkIcon,
+  Lock,
   MessageCircle,
   Plus,
   Sparkles,
+  Tag as TagIcon,
   Trash2,
   X,
 } from "lucide-react"
@@ -38,12 +41,14 @@ import { Chip } from "@/components/app/chip"
 import { useConfirm } from "@/components/app/confirm"
 import { Mascot } from "@/components/app/mascot"
 import { useOverlays } from "@/components/overlay-provider"
+import { fmtDate, fmtMinutes } from "@/lib/tasks"
 import { useIsCompact } from "@/lib/use-media-query"
 import {
   useDeleteTask,
   useProjects,
   useSaveTask,
   useTasks,
+  useTaskEvents,
 } from "@/lib/queries"
 import type {
   IdeaLink,
@@ -75,6 +80,8 @@ type FormState = {
   subtasks: SubtaskDraft[]
   ideaLinks: IdeaLinkDraft[]
   estimate_min: number
+  tags: string[]
+  blocked_by: number[]
 }
 
 export type TaskFormPresets = Partial<FormState>
@@ -106,6 +113,8 @@ function emptyState(presets?: Partial<FormState>): FormState {
     subtasks: [],
     ideaLinks: [],
     estimate_min: 0,
+    tags: [],
+    blocked_by: [],
     ...presets,
   }
 }
@@ -130,6 +139,8 @@ function stateFromTask(task: Task): FormState {
     })),
     ideaLinks: (task.idea_links || []).map((l) => ({ ...l })),
     estimate_min: task.estimate_min ?? 0,
+    tags: task.tags ?? [],
+    blocked_by: task.blocked_by ?? [],
   }
 }
 
@@ -141,6 +152,8 @@ function loadDraft(key: string): FormState | null {
     parsed.links = (parsed.links || []).map((l) => ({ ...l, uid: uid() }))
     parsed.subtasks = (parsed.subtasks || []).map((s) => ({ ...s, uid: uid() }))
     parsed.ideaLinks = parsed.ideaLinks || []
+    parsed.tags = Array.isArray(parsed.tags) ? parsed.tags : []
+    parsed.blocked_by = Array.isArray(parsed.blocked_by) ? parsed.blocked_by : []
     return parsed
   } catch {
     return null
@@ -167,6 +180,8 @@ function snapshotOf(state: FormState) {
     subtasks: state.subtasks.map((s) => ({ title: s.title, done: s.done })),
     ideaLinks: state.ideaLinks.map(ideaLinkKey).sort(),
     estimate_min: state.estimate_min,
+    tags: [...state.tags].sort(),
+    blocked_by: [...state.blocked_by].sort(),
   }
 }
 
@@ -261,6 +276,21 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
     return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"))
   }, [projects.data, tasks.data])
 
+  const blockCandidates = useMemo(
+    () =>
+      (tasks.data ?? [])
+        .filter((item) => item.id !== task?.id)
+        .filter((item) => (item.status || "aberta") !== "concluida")
+        .filter((item) => !form.blocked_by.includes(item.id))
+        .sort((a, b) => a.title.localeCompare(b.title, "pt-BR")),
+    [tasks.data, task?.id, form.blocked_by],
+  )
+
+  const titleById = useMemo(
+    () => new Map((tasks.data ?? []).map((item) => [item.id, item.title])),
+    [tasks.data],
+  )
+
   const ideaTargets = useMemo(() => {
     const projectsList = (projects.data ?? []).map((p) => ({
       value: `projeto:${p.id}`,
@@ -300,6 +330,8 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
         .filter((s) => s.title),
       recorrencia: form.recorrencia,
       estimate_min: form.estimate_min,
+      tags: form.tags,
+      blocked_by: form.blocked_by,
     }
     if (form.tipo === "ideia") {
       payload.idea_links = form.ideaLinks.map((l) => ({
@@ -362,6 +394,7 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
           description: task.description || "",
           recorrencia: task.recorrencia || "",
           subtasks: (task.subtasks ?? []).map((sub) => ({ title: sub.title, done: 0 as const })),
+          tags: task.tags ?? [],
           links: (task.links ?? []).map((link) => ({
             kind: link.kind,
             label: link.label ?? "",
@@ -588,6 +621,63 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
               </datalist>
             </div>
 
+            <TagsEditor tags={form.tags} onChange={(tags) => set("tags", tags)} />
+
+            <div className="space-y-1.5">
+              <div className="rf-caption font-medium text-foreground">
+                Bloqueada por{" "}
+                <span className="font-normal text-muted-foreground">
+                  (opcional — só libera quando estas terminarem)
+                </span>
+              </div>
+              {form.blocked_by.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {form.blocked_by.map((id) => (
+                    <span
+                      key={id}
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[var(--rf-field)] px-2.5 py-1 text-xs"
+                    >
+                      <Lock className="size-3 shrink-0" aria-hidden />
+                      <span className="truncate">{titleById.get(id) ?? `#${id}`}</span>
+                      <button
+                        type="button"
+                        aria-label="Remover bloqueio"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() =>
+                          set(
+                            "blocked_by",
+                            form.blocked_by.filter((value) => value !== id),
+                          )
+                        }
+                      >
+                        <X className="size-3" aria-hidden />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Nenhum bloqueio.</p>
+              )}
+              <NativeSelect
+                value=""
+                aria-label="Adicionar dependência"
+                onChange={(event) => {
+                  const id = Number(event.target.value)
+                  if (!id) return
+                  set("blocked_by", [...form.blocked_by, id])
+                }}
+              >
+                <NativeSelectOption value="" disabled>
+                  Adicionar dependência…
+                </NativeSelectOption>
+                {blockCandidates.map((item) => (
+                  <NativeSelectOption key={item.id} value={String(item.id)}>
+                    {item.title}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="rf-caption font-medium text-foreground" htmlFor="task-asked">
@@ -793,6 +883,13 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
               />
             </div>
 
+            {task ? (
+              <>
+                <Separator />
+                <TaskHistory taskId={task.id} />
+              </>
+            ) : null}
+
             <div className="flex items-start gap-rf-2 rounded-[var(--rf-radius-card)] bg-[var(--app-ai-soft)] px-rf-3 py-rf-3">
               <Sparkles className="mt-0.5 size-4 shrink-0 text-[var(--app-ai)]" aria-hidden />
               <p className="rf-caption text-foreground">
@@ -874,6 +971,175 @@ export function TaskDialog({ open, onOpenChange, task, presets }: TaskDialogProp
         {formBody}
       </DialogContent>
     </Dialog>
+  )
+}
+
+const EVENT_LABEL: Record<string, string> = {
+  title: "Título",
+  status: "Status",
+  priority: "Prioridade",
+  due_date: "Prazo",
+  projeto: "Projeto",
+  tipo: "Tipo",
+  recorrencia: "Recorrência",
+  estimate_min: "Estimativa",
+  tags: "Tags",
+  blocked_by: "Bloqueada por",
+}
+
+const STATUS_EVENT_LABEL: Record<string, string> = {
+  aberta: "Aberta",
+  andamento: "Em andamento",
+  concluida: "Concluída",
+}
+
+const PRIO_EVENT_LABEL: Record<string, string> = {
+  alta: "Alta",
+  media: "Média",
+  baixa: "Baixa",
+}
+
+const RECOR_EVENT_LABEL: Record<string, string> = {
+  diaria: "Diária",
+  semanal: "Semanal",
+  mensal: "Mensal",
+}
+
+function eventValueText(field: string, value: string): string {
+  if (!value) return "—"
+  if (field === "status") return STATUS_EVENT_LABEL[value] ?? value
+  if (field === "priority") return PRIO_EVENT_LABEL[value] ?? value
+  if (field === "recorrencia") return RECOR_EVENT_LABEL[value] ?? value
+  if (field === "due_date") return fmtDate(value)
+  if (field === "estimate_min") return fmtMinutes(Number(value)) || "sem estimativa"
+  return value
+}
+
+function eventWhen(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function TaskHistory({ taskId }: { taskId: number }) {
+  const events = useTaskEvents(taskId)
+  const list = (events.data ?? []).slice(0, 12)
+  return (
+    <div className="space-y-2">
+      <div className="rf-caption font-medium text-foreground">
+        Histórico{" "}
+        <span className="font-normal text-muted-foreground">(últimas mudanças)</span>
+      </div>
+      {events.isPending ? (
+        <p className="text-xs text-muted-foreground">Carregando…</p>
+      ) : list.length ? (
+        <ol className="space-y-1.5">
+          {list.map((event) => (
+            <li
+              key={event.id}
+              className="flex items-start gap-2 rounded-[var(--rf-radius-control)] bg-[var(--rf-field)] px-2.5 py-1.5"
+            >
+              <History className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-foreground">
+                  {event.kind === "criada" ? (
+                    "Demanda criada"
+                  ) : (
+                    <>
+                      <strong className="font-medium">
+                        {EVENT_LABEL[event.field] ?? event.field}
+                      </strong>
+                      {": "}
+                      <span className="text-muted-foreground">
+                        {eventValueText(event.field, event.from_value)}
+                      </span>
+                      {" → "}
+                      {eventValueText(event.field, event.to_value)}
+                    </>
+                  )}
+                </p>
+                <p className="font-mono text-[10px] text-muted-foreground">
+                  {eventWhen(event.created_at)}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-xs text-muted-foreground">Sem histórico ainda.</p>
+      )}
+    </div>
+  )
+}
+
+function TagsEditor({
+  tags,
+  onChange,
+}: {
+  tags: string[]
+  onChange: (value: string[]) => void
+}) {
+  const [draft, setDraft] = useState("")
+
+  function commit() {
+    const value = draft.trim().slice(0, 40)
+    setDraft("")
+    if (!value) return
+    if (tags.some((tag) => tag.toLowerCase() === value.toLowerCase())) return
+    if (tags.length >= 12) return
+    onChange([...tags, value])
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <label className="rf-caption font-medium text-foreground" htmlFor="task-tags">
+        Tags{" "}
+        <span className="font-normal text-muted-foreground">
+          (opcional — Enter adiciona, Backspace remove a última)
+        </span>
+      </label>
+      {tags.length ? (
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[var(--rf-field)] px-2.5 py-1 text-xs"
+            >
+              <TagIcon className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{tag}</span>
+              <button
+                type="button"
+                aria-label={`Remover tag ${tag}`}
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => onChange(tags.filter((value) => value !== tag))}
+              >
+                <X className="size-3" aria-hidden />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <Input
+        id="task-tags"
+        value={draft}
+        placeholder="Ex: cliente, urgente"
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === ",") {
+            event.preventDefault()
+            commit()
+          } else if (event.key === "Backspace" && !draft && tags.length) {
+            onChange(tags.slice(0, -1))
+          }
+        }}
+        onBlur={commit}
+      />
+    </div>
   )
 }
 

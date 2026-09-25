@@ -51,8 +51,23 @@ export type Task = {
   attach_count: number
   completed_at?: string
   estimate_min?: number
+  /** Etiquetas livres da demanda. */
+  tags: string[]
+  /** Ids das demandas que precisam terminar antes desta. */
+  blocked_by: number[]
   /** Vínculo com a CENTRAL (espelho), quando existir. */
   central?: TaskCentral | null
+}
+
+/** Evento do histórico/atividade da demanda. */
+export type TaskEvent = {
+  id: number
+  task_id: number
+  kind: "criada" | "alterou" | string
+  field: string
+  from_value: string
+  to_value: string
+  created_at: string
 }
 
 export type TaskPayload = {
@@ -70,6 +85,8 @@ export type TaskPayload = {
   recorrencia: Recorrencia
   idea_links?: Pick<IdeaLink, "target_type" | "target_id">[]
   estimate_min?: number
+  tags?: string[]
+  blocked_by?: number[]
 }
 
 export type ProjectLink = {
