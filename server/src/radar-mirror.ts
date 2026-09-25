@@ -213,6 +213,27 @@ async function insertTaskLinks(db: Database, taskId: number, text: string): Prom
   }
 }
 
+/** Completa links que faltam numa tarefa existente (idempotente). */
+async function ensureTaskLinks(db: Database, taskId: number, text: string): Promise<void> {
+  const current = await db.all<{ kind: string; target: string }>(
+    sql`SELECT kind, target FROM links WHERE task_id = ${taskId}`,
+  )
+  const known = new Set(current.map((link) => `${link.kind}\u0000${link.target}`))
+  for (const target of extractUrls(text)) {
+    if (known.has(`web\u0000${target}`)) continue
+    await db.run(
+      sql`INSERT INTO links (task_id, kind, label, target) VALUES (${taskId}, 'web', '', ${target})`,
+    )
+  }
+  for (const target of extractWikiLinks(text)) {
+    if (known.has(`nota\u0000${target}`)) continue
+    const label = target.split("/").pop() ?? target
+    await db.run(
+      sql`INSERT INTO links (task_id, kind, label, target) VALUES (${taskId}, 'nota', ${label}, ${target})`,
+    )
+  }
+}
+
 async function insertSubtasks(
   db: Database,
   taskId: number,
@@ -646,6 +667,7 @@ export async function mirrorNote(
         await reopenTask(db, task.id, existing.id, nowText)
         report.reopened += 1
       }
+      await ensureTaskLinks(db, task.id, candidate.text)
       assembled.push({ taskId: task.id, text: candidate.text })
       continue
     }
@@ -662,6 +684,7 @@ export async function mirrorNote(
         )
         if (task) {
           await updateMirroredTask(db, task.id, candidate, note, projectName)
+          await ensureTaskLinks(db, task.id, candidate.text)
           await replaceMirroredSubtasks(db, link, candidate)
           await db.run(sql`
             UPDATE central_task_links

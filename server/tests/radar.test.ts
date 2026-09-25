@@ -596,6 +596,31 @@ describe("radar: espelho de demandas", () => {
     expect(central).toHaveLength(1)
   })
 
+  it("mantem o link de nota unico ao re-sincronizar a tarefa", async () => {
+    const path = "Testes/espelho/nota-link.md"
+    const base = (text: string) =>
+      note({
+        path,
+        title: "Produto Nota Link",
+        entries: [
+          {
+            kind: "aberto",
+            text: "Demanda com nota ([[Pessoal/03 - Produtos/Bom Dia]])",
+            date: isoDaysAgo(1),
+            section: "Pendências",
+            subtasks: [],
+          },
+          { kind: "progresso", text, date: isoDaysAgo(1), section: "Registro", subtasks: [] },
+        ],
+      })
+    await ingest({ notes: [base("Base")] })
+    await ingest({ notes: [base("Base 2")] })
+    const cookie = await login()
+    const task = (await listTasks(cookie)).find((item) => item.title.startsWith("Demanda com nota"))
+    const notas = (task?.links ?? []).filter((link) => link.kind === "nota")
+    expect(notas).toHaveLength(1)
+  })
+
   it("expoe o vinculo com a CENTRAL na tarefa", async () => {
     const path = "Testes/espelho/central-info.md"
     await ingest({
