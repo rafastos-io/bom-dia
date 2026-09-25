@@ -257,8 +257,13 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   (nota, título, estado e seção), **selo "CENTRAL"** na tabela que abre a nota no Obsidian
   (`obsidian://`, kind `nota` no app e na API), link "Nota na CENTRAL" no projeto e wikilinks dos
   itens viram links de nota (reconcile completa sem duplicar; corrigido também o delete dos links
-  gerenciados que duplicava `Código`). Pendente da F2: filtros por fonte/grupo, fila de divergências
-  (concluída local × aberta na CENTRAL) e matching com IA.
+  gerenciados que duplicava `Código`).
+  ✅ **F2b publicada em 24/09/2026**: filtros por **origem** (Da CENTRAL / Manuais) e por **grupo**
+  na barra de views (persistidos por área) e **fila de revisões** na página Radar — divergências
+  (concluída local × aberta na CENTRAL, com reabrir/manter), tarefas **sem projeto** (select para
+  amarrar) e **fechadas pela CENTRAL** (reabrir), com `GET /api/radar/revisoes` e
+  `POST /api/radar/revisoes/divergente`. Em produção: 0 divergências, 19 sem projeto e 6 fechadas
+  para revisar. Pendente da F2: matching com IA (fica para depois).
 - **F3 — relatórios.** Fluxo por origem/área/projeto (revisão da semana) e sinais de atividade.
 
 ### Fase opcional (depois)
