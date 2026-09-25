@@ -644,6 +644,14 @@ describe("radar: espelho de demandas", () => {
               section: "Última sessão",
               subtasks: [],
             },
+            // Rotulo de sessao: nao deve virar evidencia para a IA.
+            {
+              kind: "progresso",
+              text: "Verificações: relatorio mensal conferido no PDF",
+              date: isoDaysAgo(1),
+              section: "Última sessão",
+              subtasks: [],
+            },
           ],
           isoDaysAgo(1),
         ),

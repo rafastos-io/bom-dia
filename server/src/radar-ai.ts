@@ -25,8 +25,25 @@ Regras:
 - use apenas ids de demandas listadas para aquele registro;
 - nao invente; se nada casar, nao inclua o registro;
 - registros que sao resumo, contexto, planos ou proximos passos NAO sao conclusao;
+- rotulos de sessao (Mudancas, Verificacoes, Riscos, Fatos, Ajustes, Refino, Imagens,
+  Continuacao, Pendencias, Proxima acao) descrevem o trabalho, nao provam que UMA
+  demanda especifica foi concluida: na duvida, nao sugira;
 - confidence alta somente com evidencia clara (mesma acao e mesmo objeto, ainda que com palavras diferentes);
 - no maximo uma sugestao por registro.`
+
+/** Rotulos de sessao que descrevem o trabalho, mas nao provam conclusao de demanda. */
+const LABEL_PREFIXES = [
+  "Mudanças",
+  "Verificações",
+  "Fatos registrados",
+  "Riscos",
+  "Ajustes",
+  "Refino",
+  "Imagens",
+  "Continuação",
+  "Pendências",
+  "Próxima ação",
+]
 
 type EntryRow = {
   note_path: string
@@ -82,12 +99,17 @@ export async function analyzeSuggestions(
   }: { ask?: AiAsk; limit?: number; now?: Date } = {},
 ): Promise<{ analyzed: number; suggested: number }> {
   const cutoff = new Date(now.getTime() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10)
+  const labelFilter = sql.join(
+    LABEL_PREFIXES.map((label) => sql`e.text NOT LIKE ${`${label}%`}`),
+    sql` AND `,
+  )
   const entries = await db.all<EntryRow>(sql`
     SELECT e.note_path, e.item_hash, e.text, e.date, n.tipo
     FROM central_entries e JOIN central_notes n ON n.path = e.note_path
     WHERE e.kind = 'progresso' AND e.section IN ('Concluído', 'Última sessão')
       AND e.date >= ${cutoff} AND n.deleted_at = ''
       AND n.tipo IN ('produto', 'projeto', 'diario')
+      AND ${labelFilter}
       AND NOT EXISTS (
         SELECT 1 FROM central_task_links l WHERE l.note_path = e.note_path AND l.item_hash = e.item_hash
       )
