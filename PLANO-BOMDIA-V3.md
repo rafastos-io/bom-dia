@@ -317,4 +317,6 @@ tags, dependências ("bloqueada por") e histórico/atividade da tarefa — ver o
   tabelas `task_deps`/`task_events`; eventos podados em 200 por demanda. Verificações: `typecheck`,
   `lint` e `build` verdes no web e no server; **62/62 testes** do server (+3) e smoke Playwright
   com **19/19** contra um banco libSQL local (tags, bloqueio, histórico, densidade, download do
-  CSV e console limpo). Publicado em `_______` (deploy `finished` — ver a nota da CENTRAL).
+  CSV e console limpo). Publicado em `0dcbbf1` (25/09/2026): deploy `finished`, container
+  `healthy`, `/health` ok, `/login` 200, `/api/tasks/1/events` 401 sem sessão, manifest e
+  `sw.js` servidos com MIME certo e bundle novo em produção.
