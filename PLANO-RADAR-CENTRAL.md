@@ -248,6 +248,11 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   **Grupo macro (24/09/2026):** `projects.grupo` espelhado do `area` da nota (vazio preserva o
   local), tela Projetos em seções colapsáveis por grupo (ordem dos 5 + extras + "Sem grupo") e
   grupo visível no detalhe/arquivados — publicado em `06909d4`; reconcile preencheu os 27.
+  **Legados direcionados (24/09/2026):** os 4 projetos antigos que ficavam em "Sem grupo" ganharam
+  grupo (Grupo Urban, FREELAS→Freelancers) e os duplicados foram fundidos e arquivados
+  (Market Center→MarketCenter; Estúdio FR3D→Produção personalizada do Estudio FR3D) — zero
+  projetos sem grupo. **Grupo editável no diálogo do projeto** e na API (`045d256`); nos espelhados
+  a área da nota continua mandando.
 - **F2 — app.** Selo "CENTRAL"/"fechada pela CENTRAL", filtro por fonte, kind `nota` + `obsidian://`,
   fila de divergências (concluída local × aberta na CENTRAL) e matching com IA.
 - **F3 — relatórios.** Fluxo por origem/área/projeto (revisão da semana) e sinais de atividade.
