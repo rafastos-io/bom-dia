@@ -272,9 +272,14 @@ da Anomaly Innovations; o caminho ficou fora do escaneamento.
   `POST /api/radar/activity` (Bearer); o Radar ganhou o painel **Atividade sem registro** (com abrir
   nota e dispensar) quando o repositório andou depois da última atualização da nota (`activity_at >
   atualizado_em`, dia a dia). Em produção: 18 repositórios lidos, 3 sem registro para revisar.
-- **Evolução opcional — matching com IA.** Paráfrases de "concluído" em texto livre (uma linha de
-  sessão que fecha uma demanda semelhante) podem ser sugeridas pela IA do servidor e confirmadas na
-  fila de revisões; nunca automático. Avaliar depois de um período de uso.
+- **F5 — matching com IA (sugestões).** ✅ publicada em 24/09/2026: sob demanda (botão "Analisar com
+  IA" na fila), a IA (`gpt-4.1-mini`, temperatura 0) cruza os registros de progresso recentes
+  (`Concluído` e `Última sessão`, sem vínculo nem sugestão) com as demandas abertas da mesma nota
+  (ou globais, no diário) e grava **sugestões pendentes** em `radar_suggestions`; o usuário confirma
+  ("Concluir", que fecha a demanda e o vínculo) ou ignora — **nunca automático**. Rótulos de sessão
+  (Mudanças, Verificações, Riscos, Ajustes…) são excluídos deterministicamente e citados no prompt;
+  sugestões exigem confiança ≥ 0.6 e são idempotentes por (entrada, demanda). Em produção a primeira
+  rodada analisou 20 registros e gerou 1 sugestão (90%).
 
 ### Fase opcional (depois)
 - [ ] Sinais de atividade sem registro (`git log`/mtime dos `caminho_local`).
